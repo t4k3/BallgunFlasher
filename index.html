@@ -497,7 +497,7 @@
                 await dev.esploader.main();
 
                 const chipInfo = document.getElementById(`${deviceType}ChipInfo`);
-                chipInfo.textContent = `${dev.esploader.chipName} - MAC: ${await dev.esploader.readMac()}`;
+                chipInfo.textContent = `${dev.esploader.chipName}`;
 
                 dev.connected = true;
                 updateUI(deviceType);
