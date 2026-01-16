@@ -614,6 +614,10 @@
 
                 setTimeout(() => hideProgress(deviceType), 3000);
 
+                // Auto-disconnect after successful update
+                await disconnect(deviceType);
+                log(`Disconnected. You can now unplug the USB cable.`, deviceType);
+
             } catch (error) {
                 log(`\nError: ${error.message}`, deviceType);
                 hideProgress(deviceType);
