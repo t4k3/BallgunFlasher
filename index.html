@@ -10,8 +10,7 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
         body {
-            max-width: 600px;
-            margin: 0 auto;
+            margin: 0;
             padding: 20px;
             background: #1a1a2e;
             color: #eee;
@@ -20,12 +19,12 @@
         h1 {
             text-align: center;
             color: #00d4ff;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
         .subtitle {
             text-align: center;
             color: #888;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
         .warning {
             background: #ff6b3520;
@@ -34,30 +33,112 @@
             padding: 15px;
             margin-bottom: 20px;
             text-align: center;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
         }
         .warning a {
             color: #ff6b35;
         }
-        .section {
+        .main-container {
+            display: flex;
+            gap: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .left-panel {
+            flex: 0 0 350px;
+        }
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .device-panels {
+            display: flex;
+            gap: 15px;
+        }
+        .device-panel {
+            flex: 1;
             background: #252540;
             border-radius: 12px;
             padding: 20px;
-            margin-bottom: 20px;
         }
-        .section h2 {
-            margin-top: 0;
+        .device-panel h2 {
+            margin: 0 0 15px 0;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .device-panel.driver h2 {
+            color: #7c4dff;
+        }
+        .device-panel.display h2 {
+            color: #00d4ff;
+        }
+        .guide-section {
+            background: #252540;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+        .guide-section h2 {
+            margin: 0 0 15px 0;
             color: #00d4ff;
             font-size: 1.1em;
         }
+        .guide-image {
+            width: 100%;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .step {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding: 10px;
+            background: #1a1a2e;
+            border-radius: 8px;
+        }
+        .step-number {
+            width: 28px;
+            height: 28px;
+            background: #7c4dff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        .step-number.display-step {
+            background: #00d4ff;
+            color: #1a1a2e;
+        }
+        .step-content {
+            flex: 1;
+        }
+        .step-title {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+        .step-desc {
+            font-size: 13px;
+            color: #888;
+        }
         button {
             width: 100%;
-            padding: 15px;
-            font-size: 16px;
+            padding: 12px;
+            font-size: 14px;
             font-weight: 600;
             border: none;
             border-radius: 8px;
             cursor: pointer;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             transition: all 0.2s;
         }
         button:disabled {
@@ -65,21 +146,14 @@
             cursor: not-allowed;
         }
         .btn-connect {
-            background: #00d4ff;
-            color: #1a1a2e;
+            background: #444;
+            color: white;
         }
         .btn-connect:hover:not(:disabled) {
-            background: #00a8cc;
+            background: #555;
         }
         .btn-connect.connected {
             background: #00c853;
-        }
-        .btn-flash {
-            background: #7c4dff;
-            color: white;
-        }
-        .btn-flash:hover:not(:disabled) {
-            background: #651fff;
         }
         .btn-erase {
             background: #ff5252;
@@ -88,112 +162,234 @@
         .btn-erase:hover:not(:disabled) {
             background: #ff1744;
         }
-        .btn-group {
-            display: flex;
-            gap: 10px;
+        .btn-flash {
+            background: #7c4dff;
+            color: white;
         }
-        .btn-group button {
-            flex: 1;
+        .btn-flash.display-btn {
+            background: #00d4ff;
+            color: #1a1a2e;
         }
-        #console {
-            background: #0d0d1a;
-            border-radius: 8px;
-            padding: 15px;
-            height: 300px;
-            overflow-y: auto;
-            font-family: 'Monaco', 'Menlo', monospace;
-            font-size: 12px;
-            line-height: 1.4;
-            white-space: pre-wrap;
-            word-break: break-all;
+        .btn-flash:hover:not(:disabled) {
+            opacity: 0.9;
         }
         .status {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding: 8px 12px;
+            background: #1a1a2e;
+            border-radius: 6px;
+            font-size: 13px;
         }
         .status-dot {
-            width: 12px;
-            height: 12px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             background: #ff5252;
         }
         .status-dot.connected {
             background: #00c853;
         }
+        .console-section {
+            background: #252540;
+            border-radius: 12px;
+            padding: 20px;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .console-section h2 {
+            margin: 0 0 10px 0;
+            color: #888;
+            font-size: 1em;
+        }
+        #console {
+            background: #0d0d1a;
+            border-radius: 8px;
+            padding: 15px;
+            flex: 1;
+            min-height: 300px;
+            overflow-y: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 11px;
+            line-height: 1.4;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
         .progress {
             width: 100%;
-            height: 8px;
-            background: #0d0d1a;
-            border-radius: 4px;
+            height: 6px;
+            background: #1a1a2e;
+            border-radius: 3px;
             overflow: hidden;
-            margin-top: 10px;
+            margin-top: 8px;
             display: none;
         }
         .progress-bar {
             height: 100%;
-            background: linear-gradient(90deg, #7c4dff, #00d4ff);
             width: 0%;
             transition: width 0.3s;
         }
-        select {
-            width: 100%;
-            padding: 12px;
-            font-size: 14px;
-            border-radius: 8px;
-            border: 1px solid #444;
-            background: #1a1a2e;
-            color: #eee;
-            margin-bottom: 10px;
+        .progress-bar.driver {
+            background: linear-gradient(90deg, #7c4dff, #b388ff);
+        }
+        .progress-bar.display {
+            background: linear-gradient(90deg, #00d4ff, #84ffff);
+        }
+        .chip-info {
+            font-size: 11px;
+            color: #666;
+            margin-top: 8px;
+        }
+        @media (max-width: 1000px) {
+            .main-container {
+                flex-direction: column;
+            }
+            .left-panel {
+                flex: none;
+            }
+            .device-panels {
+                flex-direction: column;
+            }
         }
     </style>
 </head>
 <body>
     <h1>Ballgun Flasher</h1>
-    <p class="subtitle">ESP32-C6 Web Programmer</p>
+    <p class="subtitle">ESP32-C6 Firmware Update Tool</p>
 
     <div class="warning" id="browserWarning" style="display: none;">
-        WebSerial non supportato. Usa <a href="https://www.google.com/chrome/" target="_blank">Google Chrome</a> o Edge.
+        WebSerial non supportato. Usa <a href="https://www.google.com/chrome/" target="_blank">Google Chrome</a> o Microsoft Edge.
     </div>
 
-    <div class="section">
-        <h2>1. Connessione</h2>
-        <div class="status">
-            <div class="status-dot" id="statusDot"></div>
-            <span id="statusText">Disconnesso</span>
+    <div class="main-container">
+        <!-- LEFT: Guide -->
+        <div class="left-panel">
+            <div class="guide-section">
+                <h2>Guida Aggiornamento</h2>
+
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <div class="step-title">Collega DRIVER</div>
+                        <div class="step-desc">Collega il cavo USB all'ESP32 in alto (testa motori)</div>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <div class="step-title">Connetti & Flash DRIVER</div>
+                        <div class="step-desc">Clicca Connetti, poi Erase, poi Flash</div>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <div class="step-title">Disconnetti DRIVER</div>
+                        <div class="step-desc">Clicca Disconnetti e scollega il cavo USB</div>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <div class="step-number display-step">4</div>
+                    <div class="step-content">
+                        <div class="step-title">Collega DISPLAY</div>
+                        <div class="step-desc">Collega il cavo USB all'ESP32 in basso (box giallo)</div>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <div class="step-number display-step">5</div>
+                    <div class="step-content">
+                        <div class="step-title">Connetti & Flash DISPLAY</div>
+                        <div class="step-desc">Clicca Connetti, poi Erase, poi Flash</div>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <div class="step-number display-step">6</div>
+                    <div class="step-content">
+                        <div class="step-title">Completato!</div>
+                        <div class="step-desc">Disconnetti e riavvia la Ballgun</div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <button class="btn-connect" id="connectBtn">
-            Connetti ESP32
-        </button>
-    </div>
 
-    <div class="section">
-        <h2>2. Seleziona Device</h2>
-        <select id="deviceSelect">
-            <option value="DRIVER">DRIVER (Motori)</option>
-            <option value="DISPLAY">DISPLAY (Schermo)</option>
-        </select>
-    </div>
+        <!-- RIGHT: Controls & Console -->
+        <div class="right-panel">
+            <div class="device-panels">
+                <!-- DRIVER Panel -->
+                <div class="device-panel driver">
+                    <h2>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                        </svg>
+                        DRIVER (Motori)
+                    </h2>
 
-    <div class="section">
-        <h2>3. Operazioni</h2>
-        <div class="btn-group">
-            <button class="btn-flash" id="flashBtn" disabled>
-                Flash Firmware
-            </button>
-            <button class="btn-erase" id="eraseBtn" disabled>
-                Erase Flash
-            </button>
+                    <div class="status">
+                        <div class="status-dot" id="driverStatusDot"></div>
+                        <span id="driverStatusText">Disconnesso</span>
+                    </div>
+
+                    <button class="btn-connect" id="driverConnectBtn">
+                        Connetti DRIVER
+                    </button>
+                    <button class="btn-erase" id="driverEraseBtn" disabled>
+                        Erase Flash
+                    </button>
+                    <button class="btn-flash" id="driverFlashBtn" disabled>
+                        Flash DRIVER
+                    </button>
+
+                    <div class="progress" id="driverProgress">
+                        <div class="progress-bar driver" id="driverProgressBar"></div>
+                    </div>
+                    <div class="chip-info" id="driverChipInfo"></div>
+                </div>
+
+                <!-- DISPLAY Panel -->
+                <div class="device-panel display">
+                    <h2>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>
+                        </svg>
+                        DISPLAY (Schermo)
+                    </h2>
+
+                    <div class="status">
+                        <div class="status-dot" id="displayStatusDot"></div>
+                        <span id="displayStatusText">Disconnesso</span>
+                    </div>
+
+                    <button class="btn-connect" id="displayConnectBtn">
+                        Connetti DISPLAY
+                    </button>
+                    <button class="btn-erase" id="displayEraseBtn" disabled>
+                        Erase Flash
+                    </button>
+                    <button class="btn-flash display-btn" id="displayFlashBtn" disabled>
+                        Flash DISPLAY
+                    </button>
+
+                    <div class="progress" id="displayProgress">
+                        <div class="progress-bar display" id="displayProgressBar"></div>
+                    </div>
+                    <div class="chip-info" id="displayChipInfo"></div>
+                </div>
+            </div>
+
+            <!-- Console -->
+            <div class="console-section">
+                <h2>Console</h2>
+                <div id="console"></div>
+            </div>
         </div>
-        <div class="progress" id="progress">
-            <div class="progress-bar" id="progressBar"></div>
-        </div>
-    </div>
-
-    <div class="section">
-        <h2>Console</h2>
-        <div id="console"></div>
     </div>
 
     <script type="module">
@@ -218,121 +414,130 @@
             ]
         };
 
-        let transport = null;
-        let esploader = null;
-        let connected = false;
-        let device = null;
+        // State for each device
+        const devices = {
+            driver: { transport: null, esploader: null, connected: false, device: null },
+            display: { transport: null, esploader: null, connected: false, device: null }
+        };
 
         const consoleEl = document.getElementById('console');
-        const connectBtn = document.getElementById('connectBtn');
-        const flashBtn = document.getElementById('flashBtn');
-        const eraseBtn = document.getElementById('eraseBtn');
-        const statusDot = document.getElementById('statusDot');
-        const statusText = document.getElementById('statusText');
-        const progress = document.getElementById('progress');
-        const progressBar = document.getElementById('progressBar');
 
         // Check WebSerial support
         if (!('serial' in navigator)) {
             document.getElementById('browserWarning').style.display = 'block';
-            connectBtn.disabled = true;
+            document.getElementById('driverConnectBtn').disabled = true;
+            document.getElementById('displayConnectBtn').disabled = true;
         }
 
-        function log(msg) {
+        function log(msg, type = 'info') {
             const time = new Date().toLocaleTimeString();
-            consoleEl.textContent += `[${time}] ${msg}\n`;
+            const prefix = type === 'driver' ? '[DRIVER] ' : type === 'display' ? '[DISPLAY] ' : '';
+            consoleEl.textContent += `[${time}] ${prefix}${msg}\n`;
             consoleEl.scrollTop = consoleEl.scrollHeight;
         }
 
-        function setProgress(percent) {
+        function setProgress(deviceType, percent) {
+            const progress = document.getElementById(`${deviceType}Progress`);
+            const progressBar = document.getElementById(`${deviceType}ProgressBar`);
             progress.style.display = 'block';
             progressBar.style.width = `${percent}%`;
         }
 
-        function hideProgress() {
-            progress.style.display = 'none';
-            progressBar.style.width = '0%';
+        function hideProgress(deviceType) {
+            document.getElementById(`${deviceType}Progress`).style.display = 'none';
+            document.getElementById(`${deviceType}ProgressBar`).style.width = '0%';
         }
 
-        function updateUI() {
-            if (connected) {
+        function updateUI(deviceType) {
+            const dev = devices[deviceType];
+            const statusDot = document.getElementById(`${deviceType}StatusDot`);
+            const statusText = document.getElementById(`${deviceType}StatusText`);
+            const connectBtn = document.getElementById(`${deviceType}ConnectBtn`);
+            const eraseBtn = document.getElementById(`${deviceType}EraseBtn`);
+            const flashBtn = document.getElementById(`${deviceType}FlashBtn`);
+
+            if (dev.connected) {
                 statusDot.classList.add('connected');
                 statusText.textContent = 'Connesso';
-                connectBtn.textContent = 'Disconnetti';
+                connectBtn.textContent = `Disconnetti ${deviceType.toUpperCase()}`;
                 connectBtn.classList.add('connected');
-                flashBtn.disabled = false;
                 eraseBtn.disabled = false;
+                flashBtn.disabled = false;
             } else {
                 statusDot.classList.remove('connected');
                 statusText.textContent = 'Disconnesso';
-                connectBtn.textContent = 'Connetti ESP32';
+                connectBtn.textContent = `Connetti ${deviceType.toUpperCase()}`;
                 connectBtn.classList.remove('connected');
-                flashBtn.disabled = true;
                 eraseBtn.disabled = true;
+                flashBtn.disabled = true;
+                document.getElementById(`${deviceType}ChipInfo`).textContent = '';
             }
         }
 
         // Terminal object for ESPLoader
-        const espLoaderTerminal = {
-            clean() {
-                consoleEl.textContent = '';
-            },
-            writeLine(data) {
-                log(data);
-            },
-            write(data) {
-                if (data && data.trim()) {
-                    consoleEl.textContent += data;
-                    consoleEl.scrollTop = consoleEl.scrollHeight;
+        function createTerminal(deviceType) {
+            return {
+                clean() {},
+                writeLine(data) {
+                    log(data, deviceType);
+                },
+                write(data) {
+                    if (data && data.trim()) {
+                        consoleEl.textContent += data;
+                        consoleEl.scrollTop = consoleEl.scrollHeight;
+                    }
                 }
-            }
-        };
+            };
+        }
 
-        async function connect() {
+        async function connect(deviceType) {
+            const dev = devices[deviceType];
             try {
-                log('Richiesta porta seriale...');
-                device = await navigator.serial.requestPort();
+                log(`Richiesta porta seriale...`, deviceType);
+                dev.device = await navigator.serial.requestPort();
 
-                log('Connessione in corso...');
-                transport = new Transport(device, true);
+                log(`Connessione in corso...`, deviceType);
+                dev.transport = new Transport(dev.device, true);
 
                 const loaderOptions = {
-                    transport: transport,
+                    transport: dev.transport,
                     baudrate: BAUD_RATE,
-                    terminal: espLoaderTerminal
+                    terminal: createTerminal(deviceType)
                 };
 
-                esploader = new ESPLoader(loaderOptions);
+                dev.esploader = new ESPLoader(loaderOptions);
 
-                log('Detecting chip...');
-                await esploader.main();
+                log(`Detecting chip...`, deviceType);
+                await dev.esploader.main();
 
-                log(`Chip: ${esploader.chipName}`);
+                const chipInfo = document.getElementById(`${deviceType}ChipInfo`);
+                chipInfo.textContent = `${dev.esploader.chipName} - MAC: ${await dev.esploader.readMac()}`;
 
-                connected = true;
-                updateUI();
-                log('Connesso con successo!');
+                dev.connected = true;
+                updateUI(deviceType);
+                log(`Connesso con successo!`, deviceType);
 
             } catch (error) {
-                log(`Errore: ${error.message}`);
-                connected = false;
-                updateUI();
+                log(`Errore: ${error.message}`, deviceType);
+                dev.connected = false;
+                updateUI(deviceType);
             }
         }
 
-        async function disconnect() {
+        async function disconnect(deviceType) {
+            const dev = devices[deviceType];
             try {
-                if (transport) {
-                    await transport.disconnect();
+                if (dev.transport) {
+                    await dev.transport.disconnect();
                 }
-                connected = false;
-                esploader = null;
-                transport = null;
-                device = null;
-                updateUI();
-                log('Disconnesso');
+                dev.connected = false;
+                dev.esploader = null;
+                dev.transport = null;
+                dev.device = null;
+                updateUI(deviceType);
+                log(`Disconnesso`, deviceType);
             } catch (error) {
-                log(`Errore disconnessione: ${error.message}`);
+                log(`Errore disconnessione: ${error.message}`, deviceType);
             }
         }
 
@@ -342,7 +547,6 @@
                 throw new Error(`Download fallito: ${url}`);
             }
             const arrayBuffer = await response.arrayBuffer();
-            // Convert to binary string for esptool-js
             const bytes = new Uint8Array(arrayBuffer);
             let binaryString = '';
             for (let i = 0; i < bytes.length; i++) {
@@ -351,31 +555,32 @@
             return binaryString;
         }
 
-        async function flashFirmware() {
-            if (!connected || !esploader) {
-                log('Non connesso!');
+        async function flashFirmware(deviceType) {
+            const dev = devices[deviceType];
+            if (!dev.connected || !dev.esploader) {
+                log('Non connesso!', deviceType);
                 return;
             }
 
-            const deviceType = document.getElementById('deviceSelect').value;
-            const files = FLASH_CONFIG[deviceType];
+            const files = FLASH_CONFIG[deviceType.toUpperCase()];
+            const eraseBtn = document.getElementById(`${deviceType}EraseBtn`);
+            const flashBtn = document.getElementById(`${deviceType}FlashBtn`);
 
-            flashBtn.disabled = true;
             eraseBtn.disabled = true;
+            flashBtn.disabled = true;
 
             try {
-                log(`\n========================================`);
-                log(`  FLASH ${deviceType}`);
-                log(`========================================\n`);
+                log(`\n========================================`, deviceType);
+                log(`  FLASH ${deviceType.toUpperCase()}`, deviceType);
+                log(`========================================\n`, deviceType);
 
-                // Download all files
-                log('Download firmware...');
+                log('Download firmware...', deviceType);
                 const fileArray = [];
 
                 for (let i = 0; i < files.length; i++) {
                     const file = files[i];
                     const url = `${FIRMWARE_BASE_URL}/${file.file}`;
-                    log(`  ${file.file}...`);
+                    log(`  ${file.file}...`, deviceType);
 
                     const data = await downloadFile(url);
                     fileArray.push({
@@ -383,11 +588,11 @@
                         data: data
                     });
 
-                    log(`    OK (${Math.round(data.length / 1024)} KB)`);
-                    setProgress((i + 1) / files.length * 30);
+                    log(`    OK (${Math.round(data.length / 1024)} KB)`, deviceType);
+                    setProgress(deviceType, (i + 1) / files.length * 30);
                 }
 
-                log('\nFlashing...');
+                log('\nFlashing...', deviceType);
 
                 const flashOptions = {
                     fileArray: fileArray,
@@ -399,74 +604,88 @@
                     reportProgress: (fileIndex, written, total) => {
                         const fileProgress = written / total;
                         const overallProgress = 30 + ((fileIndex + fileProgress) / fileArray.length * 70);
-                        setProgress(overallProgress);
+                        setProgress(deviceType, overallProgress);
                     }
                 };
 
-                await esploader.writeFlash(flashOptions);
+                await dev.esploader.writeFlash(flashOptions);
 
-                setProgress(100);
-                log(`\n${deviceType} FLASH COMPLETATO!`);
+                setProgress(deviceType, 100);
+                log(`\n${deviceType.toUpperCase()} FLASH COMPLETATO!`, deviceType);
 
-                setTimeout(hideProgress, 2000);
+                setTimeout(() => hideProgress(deviceType), 2000);
 
             } catch (error) {
-                log(`\nErrore: ${error.message}`);
-                hideProgress();
+                log(`\nErrore: ${error.message}`, deviceType);
+                hideProgress(deviceType);
             }
 
-            flashBtn.disabled = false;
             eraseBtn.disabled = false;
+            flashBtn.disabled = false;
         }
 
-        async function eraseFirmware() {
-            if (!connected || !esploader) {
-                log('Non connesso!');
+        async function eraseFirmware(deviceType) {
+            const dev = devices[deviceType];
+            if (!dev.connected || !dev.esploader) {
+                log('Non connesso!', deviceType);
                 return;
             }
 
-            flashBtn.disabled = true;
+            const eraseBtn = document.getElementById(`${deviceType}EraseBtn`);
+            const flashBtn = document.getElementById(`${deviceType}FlashBtn`);
+
             eraseBtn.disabled = true;
+            flashBtn.disabled = true;
 
             try {
-                log(`\n========================================`);
-                log(`  ERASE FLASH`);
-                log(`========================================\n`);
+                log(`\n========================================`, deviceType);
+                log(`  ERASE FLASH`, deviceType);
+                log(`========================================\n`, deviceType);
 
-                log('Cancellazione in corso...');
-                setProgress(50);
+                log('Cancellazione in corso...', deviceType);
+                setProgress(deviceType, 50);
 
-                await esploader.eraseFlash();
+                await dev.esploader.eraseFlash();
 
-                setProgress(100);
-                log('ERASE COMPLETATO!');
+                setProgress(deviceType, 100);
+                log('ERASE COMPLETATO!', deviceType);
 
-                setTimeout(hideProgress, 2000);
+                setTimeout(() => hideProgress(deviceType), 2000);
 
             } catch (error) {
-                log(`\nErrore: ${error.message}`);
-                hideProgress();
+                log(`\nErrore: ${error.message}`, deviceType);
+                hideProgress(deviceType);
             }
 
-            flashBtn.disabled = false;
             eraseBtn.disabled = false;
+            flashBtn.disabled = false;
         }
 
-        // Event listeners
-        connectBtn.addEventListener('click', async () => {
-            if (connected) {
-                await disconnect();
+        // Event listeners - DRIVER
+        document.getElementById('driverConnectBtn').addEventListener('click', async () => {
+            if (devices.driver.connected) {
+                await disconnect('driver');
             } else {
-                await connect();
+                await connect('driver');
             }
         });
+        document.getElementById('driverEraseBtn').addEventListener('click', () => eraseFirmware('driver'));
+        document.getElementById('driverFlashBtn').addEventListener('click', () => flashFirmware('driver'));
 
-        flashBtn.addEventListener('click', flashFirmware);
-        eraseBtn.addEventListener('click', eraseFirmware);
+        // Event listeners - DISPLAY
+        document.getElementById('displayConnectBtn').addEventListener('click', async () => {
+            if (devices.display.connected) {
+                await disconnect('display');
+            } else {
+                await connect('display');
+            }
+        });
+        document.getElementById('displayEraseBtn').addEventListener('click', () => eraseFirmware('display'));
+        document.getElementById('displayFlashBtn').addEventListener('click', () => flashFirmware('display'));
 
         // Initial log
         log('Ballgun Web Flasher pronto');
-        log('Usa Chrome o Edge (Safari non supportato)');
+        log('Segui la guida a sinistra per aggiornare la tua Ballgun');
         log('');
     </script>
 </body>
