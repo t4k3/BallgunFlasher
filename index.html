@@ -321,6 +321,55 @@
         .checklist-item.manual-item:hover {
             background: #2a2a45;
         }
+        .report-section {
+            background: #252540;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+        .report-section h2 {
+            margin: 0 0 15px 0;
+            color: #888;
+            font-size: 1em;
+        }
+        .mac-info {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 15px;
+        }
+        .mac-item {
+            flex: 1;
+            background: #1a1a2e;
+            border-radius: 8px;
+            padding: 12px;
+        }
+        .mac-item .mac-label {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 4px;
+        }
+        .mac-item .mac-value {
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 14px;
+            color: #00d4ff;
+        }
+        .mac-item.display-mac .mac-value {
+            color: #e91e63;
+        }
+        .btn-report {
+            background: linear-gradient(135deg, #4caf50, #66bb6a);
+            color: white;
+            font-size: 16px;
+            padding: 15px;
+            width: 100%;
+        }
+        .btn-report:hover:not(:disabled) {
+            opacity: 0.9;
+            transform: scale(1.02);
+        }
+        .btn-report:disabled {
+            background: #444;
+        }
         @media (max-width: 1000px) {
             .main-container {
                 flex-direction: column;
@@ -504,7 +553,36 @@
                             <div class="item-desc">Copy .tft file to SD card and insert into display</div>
                         </div>
                     </div>
+                    <div class="checklist-item manual-item" id="check-autopairing">
+                        <div class="check-icon">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                        </div>
+                        <div class="item-content">
+                            <div class="item-title">Autopairing Verified</div>
+                            <div class="item-desc">Confirm DRIVER and DISPLAY are correctly paired</div>
+                        </div>
+                    </div>
                 </div>
+            </div>
+
+            <!-- Report Section -->
+            <div class="report-section">
+                <h2>Final Report</h2>
+                <div class="mac-info">
+                    <div class="mac-item">
+                        <div class="mac-label">DRIVER MAC Address</div>
+                        <div class="mac-value" id="driverMacValue">--</div>
+                    </div>
+                    <div class="mac-item display-mac">
+                        <div class="mac-label">DISPLAY MAC Address</div>
+                        <div class="mac-value" id="displayMacValue">--</div>
+                    </div>
+                </div>
+                <button class="btn-report" id="generateReportBtn">
+                    Generate PDF Report
+                </button>
             </div>
         </div>
     </div>
@@ -533,8 +611,8 @@
 
         // State for each device
         const devices = {
-            driver: { transport: null, esploader: null, connected: false, device: null },
-            display: { transport: null, esploader: null, connected: false, device: null }
+            driver: { transport: null, esploader: null, connected: false, device: null, mac: null },
+            display: { transport: null, esploader: null, connected: false, device: null, mac: null }
         };
 
         const consoleEl = document.getElementById('console');
@@ -598,11 +676,23 @@
                 clean() {},
                 writeLine(data) {
                     log(data, deviceType);
+                    // Capture MAC address from output
+                    const macMatch = data.match(/MAC:\s*([0-9a-f:]{17})/i);
+                    if (macMatch) {
+                        devices[deviceType].mac = macMatch[1].toUpperCase();
+                        document.getElementById(`${deviceType}MacValue`).textContent = devices[deviceType].mac;
+                    }
                 },
                 write(data) {
                     if (data && data.trim()) {
                         consoleEl.textContent += data;
                         consoleEl.scrollTop = consoleEl.scrollHeight;
+                        // Also check for MAC in raw write
+                        const macMatch = data.match(/MAC:\s*([0-9a-f:]{17})/i);
+                        if (macMatch) {
+                            devices[deviceType].mac = macMatch[1].toUpperCase();
+                            document.getElementById(`${deviceType}MacValue`).textContent = devices[deviceType].mac;
+                        }
                     }
                 }
             };
@@ -795,6 +885,103 @@
         });
         document.getElementById('check-nextion').addEventListener('click', function() {
             this.classList.toggle('completed');
+        });
+        document.getElementById('check-autopairing').addEventListener('click', function() {
+            this.classList.toggle('completed');
+        });
+
+        // Generate PDF Report
+        document.getElementById('generateReportBtn').addEventListener('click', function() {
+            const checklistItems = [
+                { id: 'check-driver', label: 'Update DRIVER (Roller)' },
+                { id: 'check-display', label: 'Update DISPLAY' },
+                { id: 'check-parameters', label: 'Update Parameters via RobotVolley-Lite' },
+                { id: 'check-nextion', label: 'Update Nextion Display via SD Card' },
+                { id: 'check-autopairing', label: 'Autopairing Verified' }
+            ];
+
+            const driverMac = devices.driver.mac || 'N/A';
+            const displayMac = devices.display.mac || 'N/A';
+            const date = new Date().toLocaleString();
+
+            // Create printable HTML
+            const printContent = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Ballgun Update Report</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; padding: 40px; max-width: 800px; margin: 0 auto; }
+                        h1 { color: #1a1a2e; border-bottom: 3px solid #00d4ff; padding-bottom: 10px; }
+                        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+                        .date { color: #666; font-size: 14px; }
+                        .section { margin-bottom: 30px; }
+                        .section h2 { color: #333; font-size: 18px; margin-bottom: 15px; }
+                        .mac-box { display: flex; gap: 30px; margin-bottom: 20px; }
+                        .mac-item { flex: 1; background: #f5f5f5; padding: 15px; border-radius: 8px; border-left: 4px solid #00d4ff; }
+                        .mac-item.display { border-left-color: #e91e63; }
+                        .mac-label { font-size: 12px; color: #666; margin-bottom: 5px; }
+                        .mac-value { font-family: monospace; font-size: 16px; font-weight: bold; }
+                        .checklist { list-style: none; padding: 0; }
+                        .checklist li { padding: 12px 15px; margin-bottom: 8px; background: #f9f9f9; border-radius: 6px; display: flex; align-items: center; gap: 12px; }
+                        .check { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+                        .check.done { background: #4caf50; color: white; }
+                        .check.pending { background: #ddd; color: #999; }
+                        .status { font-weight: 600; }
+                        .status.done { color: #4caf50; }
+                        .status.pending { color: #999; }
+                        .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #ddd; text-align: center; color: #888; font-size: 12px; }
+                        @media print { body { padding: 20px; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>Ballgun Update Report</h1>
+                        <div class="date">${date}</div>
+                    </div>
+
+                    <div class="section">
+                        <h2>Device Information</h2>
+                        <div class="mac-box">
+                            <div class="mac-item">
+                                <div class="mac-label">DRIVER (Roller) MAC Address</div>
+                                <div class="mac-value">${driverMac}</div>
+                            </div>
+                            <div class="mac-item display">
+                                <div class="mac-label">DISPLAY MAC Address</div>
+                                <div class="mac-value">${displayMac}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h2>Update Checklist</h2>
+                        <ul class="checklist">
+                            ${checklistItems.map(item => {
+                                const el = document.getElementById(item.id);
+                                const done = el && el.classList.contains('completed');
+                                return `<li>
+                                    <div class="check ${done ? 'done' : 'pending'}">${done ? '✓' : ''}</div>
+                                    <span class="status ${done ? 'done' : 'pending'}">${item.label}</span>
+                                </li>`;
+                            }).join('')}
+                        </ul>
+                    </div>
+
+                    <div class="footer">
+                        Generated by Ballgun Web Flasher - https://t4k3.github.io/BallgunFlasher
+                    </div>
+                </body>
+                </html>
+            `;
+
+            // Open print window
+            const printWindow = window.open('', '_blank');
+            printWindow.document.write(printContent);
+            printWindow.document.close();
+            printWindow.onload = function() {
+                printWindow.print();
+            };
         });
 
         // Initial log
