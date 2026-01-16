@@ -241,6 +241,86 @@
             color: #666;
             margin-top: 8px;
         }
+        .checklist-section {
+            background: #252540;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+        .checklist-section h2 {
+            margin: 0 0 15px 0;
+            color: #888;
+            font-size: 1em;
+        }
+        .checklist {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .checklist-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 15px;
+            background: #1a1a2e;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        .checklist-item.completed {
+            background: #00c85320;
+        }
+        .checklist-item .check-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 2px solid #444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.3s;
+        }
+        .checklist-item.completed .check-icon {
+            background: #00c853;
+            border-color: #00c853;
+        }
+        .checklist-item .check-icon svg {
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .checklist-item.completed .check-icon svg {
+            opacity: 1;
+        }
+        .checklist-item .item-content {
+            flex: 1;
+        }
+        .checklist-item .item-title {
+            font-weight: 600;
+            color: #eee;
+        }
+        .checklist-item.completed .item-title {
+            color: #00c853;
+        }
+        .checklist-item .item-desc {
+            font-size: 12px;
+            color: #666;
+            margin-top: 2px;
+        }
+        .checklist-item.driver-item .check-icon {
+            border-color: #00d4ff;
+        }
+        .checklist-item.display-item .check-icon {
+            border-color: #e91e63;
+        }
+        .checklist-item.manual-item .check-icon {
+            border-color: #ff9800;
+        }
+        .checklist-item.manual-item {
+            cursor: pointer;
+        }
+        .checklist-item.manual-item:hover {
+            background: #2a2a45;
+        }
         @media (max-width: 1000px) {
             .main-container {
                 flex-direction: column;
@@ -374,6 +454,57 @@
             <div class="console-section">
                 <h2>Console</h2>
                 <div id="console"></div>
+            </div>
+
+            <!-- Checklist -->
+            <div class="checklist-section">
+                <h2>Update Checklist</h2>
+                <div class="checklist">
+                    <div class="checklist-item driver-item" id="check-driver">
+                        <div class="check-icon">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                        </div>
+                        <div class="item-content">
+                            <div class="item-title">Update DRIVER (Roller)</div>
+                            <div class="item-desc">Flash ESP32 firmware for motor control</div>
+                        </div>
+                    </div>
+                    <div class="checklist-item display-item" id="check-display">
+                        <div class="check-icon">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                        </div>
+                        <div class="item-content">
+                            <div class="item-title">Update DISPLAY</div>
+                            <div class="item-desc">Flash ESP32 firmware for display controller</div>
+                        </div>
+                    </div>
+                    <div class="checklist-item manual-item" id="check-parameters">
+                        <div class="check-icon">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                        </div>
+                        <div class="item-content">
+                            <div class="item-title">Update Parameters via RobotVolley-Lite</div>
+                            <div class="item-desc">Configure machine settings via Bluetooth</div>
+                        </div>
+                    </div>
+                    <div class="checklist-item manual-item" id="check-nextion">
+                        <div class="check-icon">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                        </div>
+                        <div class="item-content">
+                            <div class="item-title">Update Nextion Display via SD Card</div>
+                            <div class="item-desc">Copy .tft file to SD card and insert into display</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -618,6 +749,9 @@
                 await disconnect(deviceType);
                 log(`Disconnected. You can now unplug the USB cable.`, deviceType);
 
+                // Mark checklist item as completed
+                markChecklistComplete(`check-${deviceType}`);
+
             } catch (error) {
                 log(`\nError: ${error.message}`, deviceType);
                 hideProgress(deviceType);
@@ -646,6 +780,22 @@
             }
         });
         document.getElementById('displayUpdateBtn').addEventListener('click', () => updateFirmware('display'));
+
+        // Checklist functions
+        function markChecklistComplete(itemId) {
+            const item = document.getElementById(itemId);
+            if (item) {
+                item.classList.add('completed');
+            }
+        }
+
+        // Manual checklist items - click to toggle
+        document.getElementById('check-parameters').addEventListener('click', function() {
+            this.classList.toggle('completed');
+        });
+        document.getElementById('check-nextion').addEventListener('click', function() {
+            this.classList.toggle('completed');
+        });
 
         // Initial log
         log('Ballgun Web Flasher ready');
