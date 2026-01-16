@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -261,60 +261,60 @@
     <p class="subtitle">ESP32-C6 Firmware Update Tool</p>
 
     <div class="warning" id="browserWarning" style="display: none;">
-        WebSerial non supportato. Usa <a href="https://www.google.com/chrome/" target="_blank">Google Chrome</a> o Microsoft Edge.
+        WebSerial not supported. Please use <a href="https://www.google.com/chrome/" target="_blank">Google Chrome</a> or Microsoft Edge.
     </div>
 
     <div class="main-container">
         <!-- LEFT: Guide -->
         <div class="left-panel">
             <div class="guide-section">
-                <h2>Guida Aggiornamento</h2>
+                <h2>Update Guide</h2>
 
                 <div class="step">
                     <div class="step-number">1</div>
                     <div class="step-content">
-                        <div class="step-title">Collega DRIVER</div>
-                        <div class="step-desc">Collega il cavo USB all'ESP32 in alto (testa motori)</div>
+                        <div class="step-title">Connect DRIVER</div>
+                        <div class="step-desc">Plug USB cable to the ESP32 on top (motor head)</div>
                     </div>
                 </div>
 
                 <div class="step">
                     <div class="step-number">2</div>
                     <div class="step-content">
-                        <div class="step-title">Connetti & Flash DRIVER</div>
-                        <div class="step-desc">Clicca Connetti, poi Erase, poi Flash</div>
+                        <div class="step-title">Connect & Flash DRIVER</div>
+                        <div class="step-desc">Click Connect, then Erase, then Flash</div>
                     </div>
                 </div>
 
                 <div class="step">
                     <div class="step-number">3</div>
                     <div class="step-content">
-                        <div class="step-title">Disconnetti DRIVER</div>
-                        <div class="step-desc">Clicca Disconnetti e scollega il cavo USB</div>
+                        <div class="step-title">Disconnect DRIVER</div>
+                        <div class="step-desc">Click Disconnect and unplug USB cable</div>
                     </div>
                 </div>
 
                 <div class="step">
                     <div class="step-number display-step">4</div>
                     <div class="step-content">
-                        <div class="step-title">Collega DISPLAY</div>
-                        <div class="step-desc">Collega il cavo USB all'ESP32 in basso (box giallo)</div>
+                        <div class="step-title">Connect DISPLAY</div>
+                        <div class="step-desc">Plug USB cable to the ESP32 at bottom (yellow box)</div>
                     </div>
                 </div>
 
                 <div class="step">
                     <div class="step-number display-step">5</div>
                     <div class="step-content">
-                        <div class="step-title">Connetti & Flash DISPLAY</div>
-                        <div class="step-desc">Clicca Connetti, poi Erase, poi Flash</div>
+                        <div class="step-title">Connect & Flash DISPLAY</div>
+                        <div class="step-desc">Click Connect, then Erase, then Flash</div>
                     </div>
                 </div>
 
                 <div class="step">
                     <div class="step-number display-step">6</div>
                     <div class="step-content">
-                        <div class="step-title">Completato!</div>
-                        <div class="step-desc">Disconnetti e riavvia la Ballgun</div>
+                        <div class="step-title">Done!</div>
+                        <div class="step-desc">Disconnect and restart the Ballgun</div>
                     </div>
                 </div>
             </div>
@@ -334,11 +334,11 @@
 
                     <div class="status">
                         <div class="status-dot" id="driverStatusDot"></div>
-                        <span id="driverStatusText">Disconnesso</span>
+                        <span id="driverStatusText">Disconnected</span>
                     </div>
 
                     <button class="btn-connect" id="driverConnectBtn">
-                        Connetti DRIVER
+                        Connect DRIVER
                     </button>
                     <button class="btn-erase" id="driverEraseBtn" disabled>
                         Erase Flash
@@ -364,11 +364,11 @@
 
                     <div class="status">
                         <div class="status-dot" id="displayStatusDot"></div>
-                        <span id="displayStatusText">Disconnesso</span>
+                        <span id="displayStatusText">Disconnected</span>
                     </div>
 
                     <button class="btn-connect" id="displayConnectBtn">
-                        Connetti DISPLAY
+                        Connect DISPLAY
                     </button>
                     <button class="btn-erase" id="displayEraseBtn" disabled>
                         Erase Flash
@@ -436,6 +436,10 @@
             consoleEl.scrollTop = consoleEl.scrollHeight;
         }
 
+        function updateStatusText(deviceType, connected) {
+            document.getElementById(`${deviceType}StatusText`).textContent = connected ? 'Connected' : 'Disconnected';
+        }
+
         function setProgress(deviceType, percent) {
             const progress = document.getElementById(`${deviceType}Progress`);
             const progressBar = document.getElementById(`${deviceType}ProgressBar`);
@@ -458,15 +462,15 @@
 
             if (dev.connected) {
                 statusDot.classList.add('connected');
-                statusText.textContent = 'Connesso';
-                connectBtn.textContent = `Disconnetti ${deviceType.toUpperCase()}`;
+                statusText.textContent = 'Connected';
+                connectBtn.textContent = `Disconnect ${deviceType.toUpperCase()}`;
                 connectBtn.classList.add('connected');
                 eraseBtn.disabled = false;
                 flashBtn.disabled = false;
             } else {
                 statusDot.classList.remove('connected');
-                statusText.textContent = 'Disconnesso';
-                connectBtn.textContent = `Connetti ${deviceType.toUpperCase()}`;
+                statusText.textContent = 'Disconnected';
+                connectBtn.textContent = `Connect ${deviceType.toUpperCase()}`;
                 connectBtn.classList.remove('connected');
                 eraseBtn.disabled = true;
                 flashBtn.disabled = true;
@@ -493,10 +497,10 @@
         async function connect(deviceType) {
             const dev = devices[deviceType];
             try {
-                log(`Richiesta porta seriale...`, deviceType);
+                log(`Requesting serial port...`, deviceType);
                 dev.device = await navigator.serial.requestPort();
 
-                log(`Connessione in corso...`, deviceType);
+                log(`Connecting...`, deviceType);
                 dev.transport = new Transport(dev.device, true);
 
                 const loaderOptions = {
@@ -515,10 +519,10 @@
 
                 dev.connected = true;
                 updateUI(deviceType);
-                log(`Connesso con successo!`, deviceType);
+                log(`Connected successfully!`, deviceType);
 
             } catch (error) {
-                log(`Errore: ${error.message}`, deviceType);
+                log(`Error: ${error.message}`, deviceType);
                 dev.connected = false;
                 updateUI(deviceType);
             }
@@ -535,16 +539,16 @@
                 dev.transport = null;
                 dev.device = null;
                 updateUI(deviceType);
-                log(`Disconnesso`, deviceType);
+                log(`Disconnected`, deviceType);
             } catch (error) {
-                log(`Errore disconnessione: ${error.message}`, deviceType);
+                log(`Disconnect error: ${error.message}`, deviceType);
             }
         }
 
         async function downloadFile(url) {
             const response = await fetch(url);
             if (!response.ok) {
-                throw new Error(`Download fallito: ${url}`);
+                throw new Error(`Download failed: ${url}`);
             }
             const arrayBuffer = await response.arrayBuffer();
             const bytes = new Uint8Array(arrayBuffer);
@@ -558,7 +562,7 @@
         async function flashFirmware(deviceType) {
             const dev = devices[deviceType];
             if (!dev.connected || !dev.esploader) {
-                log('Non connesso!', deviceType);
+                log('Not connected!', deviceType);
                 return;
             }
 
@@ -574,7 +578,7 @@
                 log(`  FLASH ${deviceType.toUpperCase()}`, deviceType);
                 log(`========================================\n`, deviceType);
 
-                log('Download firmware...', deviceType);
+                log('Downloading firmware...', deviceType);
                 const fileArray = [];
 
                 for (let i = 0; i < files.length; i++) {
@@ -611,12 +615,12 @@
                 await dev.esploader.writeFlash(flashOptions);
 
                 setProgress(deviceType, 100);
-                log(`\n${deviceType.toUpperCase()} FLASH COMPLETATO!`, deviceType);
+                log(`\n${deviceType.toUpperCase()} FLASH COMPLETE!`, deviceType);
 
                 setTimeout(() => hideProgress(deviceType), 2000);
 
             } catch (error) {
-                log(`\nErrore: ${error.message}`, deviceType);
+                log(`\nError: ${error.message}`, deviceType);
                 hideProgress(deviceType);
             }
 
@@ -627,7 +631,7 @@
         async function eraseFirmware(deviceType) {
             const dev = devices[deviceType];
             if (!dev.connected || !dev.esploader) {
-                log('Non connesso!', deviceType);
+                log('Not connected!', deviceType);
                 return;
             }
 
@@ -642,18 +646,18 @@
                 log(`  ERASE FLASH`, deviceType);
                 log(`========================================\n`, deviceType);
 
-                log('Cancellazione in corso...', deviceType);
+                log('Erasing flash...', deviceType);
                 setProgress(deviceType, 50);
 
                 await dev.esploader.eraseFlash();
 
                 setProgress(deviceType, 100);
-                log('ERASE COMPLETATO!', deviceType);
+                log('ERASE COMPLETE!', deviceType);
 
                 setTimeout(() => hideProgress(deviceType), 2000);
 
             } catch (error) {
-                log(`\nErrore: ${error.message}`, deviceType);
+                log(`\nError: ${error.message}`, deviceType);
                 hideProgress(deviceType);
             }
 
@@ -684,8 +688,8 @@
         document.getElementById('displayFlashBtn').addEventListener('click', () => flashFirmware('display'));
 
         // Initial log
-        log('Ballgun Web Flasher pronto');
-        log('Segui la guida a sinistra per aggiornare la tua Ballgun');
+        log('Ballgun Web Flasher ready');
+        log('Follow the guide on the left to update your Ballgun');
         log('');
     </script>
 </body>
