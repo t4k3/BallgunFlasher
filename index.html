@@ -1254,15 +1254,32 @@
                 nextionSetProgress(5);
                 log('Serial port opened at 115200 baud', 'display');
 
-                // Wait a moment for ESP32 to boot/stabilize
-                await new Promise(r => setTimeout(r, 500));
-                await nextionDrainRx(500);
+                // Wait for ESP32 to boot and stabilize after flash
+                log('Waiting for ESP32 to boot...', 'display');
+                await new Promise(r => setTimeout(r, 2000));
+                await nextionDrainRx(1000);
 
-                // Step 2: Enter passthrough mode
+                // Step 2: Enter passthrough mode (retry up to 3 times)
                 log('Step 2: Entering Nextion passthrough mode...', 'display');
-                await nextionSendRaw('NEXTION_UPDATE\n');
-
-                const readyResponse = await nextionReadUntilString('NEXTION_READY', 5000);
+                let passthroughOk = false;
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                    log(`Sending NEXTION_UPDATE command (attempt ${attempt}/3)...`, 'display');
+                    await nextionDrainRx(200);
+                    await nextionSendRaw('NEXTION_UPDATE\n');
+                    try {
+                        await nextionReadUntilString('NEXTION_READY', 5000);
+                        passthroughOk = true;
+                        break;
+                    } catch (e) {
+                        log(`Attempt ${attempt}: ${e.message}`, 'display');
+                        if (attempt < 3) {
+                            await new Promise(r => setTimeout(r, 1000));
+                        }
+                    }
+                }
+                if (!passthroughOk) {
+                    throw new Error('ESP32 did not enter passthrough mode after 3 attempts. Make sure DISPLAY firmware V12.2.8+ is flashed.');
+                }
                 log('ESP32 passthrough mode active', 'display');
                 nextionSetProgress(10);
                 nextionSetStatus('Passthrough active', true);
@@ -1270,35 +1287,54 @@
                 // Drain any leftover
                 await nextionDrainRx(300);
 
-                // Step 3: Connect to Nextion display
+                // Step 3: Connect to Nextion display - try multiple baud rates
                 log('Step 3: Connecting to Nextion display...', 'display');
+                const baudRates = [9600, 115200, 38400, 57600, 4800, 19200];
+                let detectedBaud = 0;
 
-                // Send empty terminator to wake up Nextion
-                await nextionSendCmd('');
-                await new Promise(r => setTimeout(r, 100));
-                await nextionDrainRx(200);
+                for (const baud of baudRates) {
+                    log(`Trying ${baud} baud...`, 'display');
 
-                // Send connect command
-                await nextionSendCmd('connect');
-                log('Sent: connect', 'display');
+                    // Tell ESP32 to change UART0 baud
+                    await nextionDrainRx(100);
+                    await nextionSendRaw(`NEXTION_BAUD:${baud}\n`);
+                    try {
+                        await nextionReadUntilString('BAUD_OK', 2000);
+                    } catch (e) {
+                        log(`  Failed to set baud: ${e.message}`, 'display');
+                        continue;
+                    }
+                    await new Promise(r => setTimeout(r, 50));
+                    await nextionDrainRx(100);
 
-                // Wait for Nextion response (comok...)
-                let connectResponse;
-                try {
-                    connectResponse = await nextionReadUntilByte(0xFF, 5000);
-                    const respText = new TextDecoder().decode(connectResponse);
-                    log(`Nextion response: ${respText.replace(/[\xff]/g, '')}`, 'display');
-                } catch (e) {
-                    // Some Nextion models respond differently, try to continue
-                    log(`Warning: ${e.message} - attempting to continue...`, 'display');
+                    // Send empty terminator to wake up Nextion
+                    await nextionSendCmd('');
+                    await new Promise(r => setTimeout(r, 100));
+                    await nextionDrainRx(100);
+
+                    // Send connect command
+                    await nextionSendCmd('connect');
+                    try {
+                        const resp = await nextionReadUntilByte(0xFF, 2000);
+                        const respText = new TextDecoder().decode(resp);
+                        log(`Nextion responded at ${baud} baud: ${respText.replace(/[\xff]/g, '')}`, 'display');
+                        detectedBaud = baud;
+                        break;
+                    } catch (e) {
+                        // No response at this baud, try next
+                    }
+                }
+
+                if (detectedBaud === 0) {
+                    throw new Error('Nextion display did not respond at any baud rate. Check UART connection.');
                 }
                 nextionSetProgress(15);
-
                 await nextionDrainRx(200);
 
-                // Step 4: Send whmi-wris command to start upload
+                // Step 4: Send whmi-wris command to start upload (upload at detected baud)
                 const fileSize = tftData.size;
-                const uploadCmd = `whmi-wris ${fileSize},115200,0`;
+                const uploadBaud = detectedBaud;
+                const uploadCmd = `whmi-wris ${fileSize},${uploadBaud},0`;
                 log(`Step 4: Starting upload (${(fileSize / 1024).toFixed(0)} KB)...`, 'display');
                 log(`Sent: ${uploadCmd}`, 'display');
                 await nextionSendCmd(uploadCmd);
