@@ -1424,7 +1424,7 @@
                 nextionSetProgress(20);
 
                 // Step 5: Send .tft file in 4096-byte chunks
-                log('Step 5: Uploading .tft firmware...', 'display');
+                log(`Step 5: Uploading .tft firmware... [bridge v3]`, 'display');
                 const fileData = tftData.data;
                 const chunkSize = 4096;
                 const totalChunks = Math.ceil(fileData.length / chunkSize);
@@ -1435,22 +1435,46 @@
                     const end = Math.min(start + chunkSize, fileData.length);
                     const chunk = fileData.slice(start, end);
 
+                    // Clear buffer before sending chunk
+                    nextionRxBuffer = new Uint8Array(0);
+
                     await nextionWriter.write(chunk);
                     bytesSent += chunk.length;
 
-                    // Wait for 0x05 ACK from Nextion
-                    try {
-                        await nextionReadUntilByte(0x05, 60000);
-                    } catch (e) {
-                        throw new Error(`Nextion did not ACK chunk ${i + 1}/${totalChunks}: ${e.message}`);
+                    // Wait for 0x05 ACK from Nextion with diagnostics
+                    const chunkStart = Date.now();
+                    let gotAck = false;
+                    while (Date.now() - chunkStart < 30000) {
+                        // Check buffer for 0x05
+                        for (let j = 0; j < nextionRxBuffer.length; j++) {
+                            if (nextionRxBuffer[j] === 0x05) {
+                                nextionRxBuffer = nextionRxBuffer.slice(j + 1);
+                                gotAck = true;
+                                break;
+                            }
+                        }
+                        if (gotAck) break;
+
+                        // Log diagnostic every 5 seconds
+                        const elapsed = Date.now() - chunkStart;
+                        if (elapsed > 0 && elapsed % 5000 < 25) {
+                            const bufHex = Array.from(nextionRxBuffer.slice(0, 32)).map(b => b.toString(16).padStart(2,'0')).join(' ');
+                            log(`  [DIAG] Chunk ${i+1}: waiting ${Math.round(elapsed/1000)}s, rxBuf=${nextionRxBuffer.length}B [${bufHex}]`, 'display');
+                        }
+                        await new Promise(r => setTimeout(r, 20));
+                    }
+
+                    if (!gotAck) {
+                        const bufHex = Array.from(nextionRxBuffer.slice(0, 64)).map(b => b.toString(16).padStart(2,'0')).join(' ');
+                        throw new Error(`Chunk ${i+1}/${totalChunks} no ACK after 30s. rxBuf=${nextionRxBuffer.length}B [${bufHex}]`);
                     }
 
                     const percent = 20 + Math.round((bytesSent / fileData.length) * 75);
                     nextionSetProgress(percent);
                     nextionSetInfo(`${bytesSent} / ${fileData.length} bytes (${Math.round(bytesSent / fileData.length * 100)}%)`);
 
-                    if ((i + 1) % 50 === 0 || i === totalChunks - 1) {
-                        log(`  Chunk ${i + 1}/${totalChunks} (${Math.round(bytesSent / 1024)} KB)`, 'display');
+                    if ((i + 1) % 20 === 0 || i === totalChunks - 1 || i < 3) {
+                        log(`  Chunk ${i + 1}/${totalChunks} OK (${Math.round(bytesSent / 1024)} KB)`, 'display');
                     }
                 }
 
