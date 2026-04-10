@@ -1420,6 +1420,13 @@
                     throw new Error('Nextion display did not respond at any baud rate. Check UART connection.');
                 }
                 nextionSetProgress(15);
+
+                // Diagnostic: wait and dump residual bytes after connect
+                await new Promise(r => setTimeout(r, 500));
+                if (nextionRxBuffer.length > 0) {
+                    const residHex = Array.from(nextionRxBuffer.slice(0, 64)).map(b => b.toString(16).padStart(2,'0')).join(' ');
+                    log(`  [CONNECT-RESIDUAL] ${nextionRxBuffer.length}B after comok: [${residHex}]`, 'display');
+                }
                 await nextionDrainRx(200);
 
                 // Step 4: Send whmi-wris command to start upload (upload at detected baud)
@@ -1430,17 +1437,29 @@
                 log(`Sent: ${uploadCmd}`, 'display');
                 await nextionSendCmd(uploadCmd);
 
-                // Wait for 0x05 (ready to receive data)
-                log('Waiting for Nextion ready signal (0x05)...', 'display');
-                const whmiResp = await nextionReadUntilByte(0x05, 15000);
-                const whmiHex = Array.from(whmiResp).map(b => b.toString(16).padStart(2,'0')).join(' ');
-                log(`Nextion ready! (whmi response: [${whmiHex}])`, 'display');
-
-                // Drain any trailing bytes after 0x05 (some Nextion models send extra status)
-                await new Promise(r => setTimeout(r, 500));
-                if (nextionRxBuffer.length > 0) {
-                    const extraHex = Array.from(nextionRxBuffer.slice(0, 32)).map(b => b.toString(16).padStart(2,'0')).join(' ');
-                    log(`  Drained ${nextionRxBuffer.length} extra bytes after 0x05: [${extraHex}]`, 'display');
+                // DIAGNOSTIC: wait 3s and dump ALL bytes from Nextion after whmi-wris
+                log('Waiting for Nextion response to whmi-wris (3s diagnostic)...', 'display');
+                nextionRxBuffer = new Uint8Array(0);
+                for (let diagSec = 0; diagSec < 6; diagSec++) {
+                    await new Promise(r => setTimeout(r, 500));
+                    if (nextionRxBuffer.length > 0) {
+                        const hex = Array.from(nextionRxBuffer.slice(0, 64)).map(b => b.toString(16).padStart(2,'0')).join(' ');
+                        log(`  [WHMI-DIAG] +${(diagSec+1)*0.5}s: ${nextionRxBuffer.length}B [${hex}]`, 'display');
+                    } else {
+                        log(`  [WHMI-DIAG] +${(diagSec+1)*0.5}s: 0B`, 'display');
+                    }
+                }
+                // Check if we got 0x05
+                let whmiGot05 = false;
+                for (let i = 0; i < nextionRxBuffer.length; i++) {
+                    if (nextionRxBuffer[i] === 0x05) { whmiGot05 = true; break; }
+                }
+                if (whmiGot05) {
+                    log('Nextion upload ACK (0x05) found — proceeding with upload', 'display');
+                } else {
+                    const hex = Array.from(nextionRxBuffer.slice(0, 64)).map(b => b.toString(16).padStart(2,'0')).join(' ');
+                    log(`WARNING: No 0x05 ACK received! Got ${nextionRxBuffer.length}B: [${hex}]`, 'display');
+                    log('Nextion may not be in upload mode. Trying anyway...', 'display');
                 }
                 nextionRxBuffer = new Uint8Array(0);
                 nextionSetProgress(20);
