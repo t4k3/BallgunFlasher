@@ -915,6 +915,9 @@
 
                 // Auto-disconnect after successful update
                 await disconnect(deviceType);
+                if (deviceType === 'display') {
+                    devices.display.justFlashed = true;
+                }
                 log('Disconnected.', deviceType);
 
                 // Mark checklist item as completed
@@ -1162,15 +1165,17 @@
 
         // Update button
         document.getElementById('nextionUpdateBtn').addEventListener('click', async () => {
-            // Remind user to reconnect USB before proceeding
-            const proceed = confirm(
-                'Before updating the Nextion display:\n\n' +
-                '1. Disconnect the USB cable from the DISPLAY ESP32\n' +
-                '2. Reconnect the USB cable\n' +
-                '3. Click OK to proceed\n\n' +
-                'This is needed because the ESP32 USB resets after flashing.'
-            );
-            if (!proceed) return;
+            // If DISPLAY was just flashed in this session, remind to reconnect USB
+            if (devices.display.justFlashed) {
+                const proceed = confirm(
+                    'DISPLAY was just flashed — USB needs to be reconnected:\n\n' +
+                    '1. Disconnect the USB cable\n' +
+                    '2. Reconnect the USB cable\n' +
+                    '3. Click OK to proceed'
+                );
+                if (!proceed) return;
+                devices.display.justFlashed = false;
+            }
 
             let tftData;
             if (nextionTftFile) {
