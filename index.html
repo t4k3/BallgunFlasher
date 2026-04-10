@@ -543,10 +543,9 @@
                     </div>
                     <div class="chip-info" id="displayChipInfo"></div>
                 </div>
-            </div>
 
-            <!-- NEXTION Panel -->
-            <div class="device-panel nextion" style="width:100%;">
+                <!-- NEXTION Panel -->
+                <div class="device-panel nextion">
                 <h2>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>
@@ -575,6 +574,7 @@
                     <div class="progress-bar nextion" id="nextionProgressBar"></div>
                 </div>
                 <div class="chip-info" id="nextionInfo"></div>
+                </div>
             </div>
 
             <!-- Console -->
@@ -1162,6 +1162,16 @@
 
         // Update button
         document.getElementById('nextionUpdateBtn').addEventListener('click', async () => {
+            // Remind user to reconnect USB before proceeding
+            const proceed = confirm(
+                'Before updating the Nextion display:\n\n' +
+                '1. Disconnect the USB cable from the DISPLAY ESP32\n' +
+                '2. Reconnect the USB cable\n' +
+                '3. Click OK to proceed\n\n' +
+                'This is needed because the ESP32 USB resets after flashing.'
+            );
+            if (!proceed) return;
+
             let tftData;
             if (nextionTftFile) {
                 // Use custom file
