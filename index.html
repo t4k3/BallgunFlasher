@@ -321,6 +321,44 @@
         .checklist-item.manual-item:hover {
             background: #2a2a45;
         }
+        .checklist-item.nextion-item .check-icon {
+            border-color: #ff9800;
+        }
+        .device-panel.nextion h2 {
+            color: #ff9800;
+        }
+        .btn-update.nextion-btn {
+            background: linear-gradient(135deg, #ff9800, #ffb74d);
+            color: #1a1a2e;
+        }
+        .progress-bar.nextion {
+            background: linear-gradient(90deg, #ff9800, #ffb74d);
+        }
+        .nextion-file-input {
+            margin-bottom: 10px;
+        }
+        .nextion-file-input label {
+            display: block;
+            padding: 12px;
+            background: #1a1a2e;
+            border: 2px dashed #ff9800;
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 13px;
+            color: #ff9800;
+            transition: all 0.2s;
+        }
+        .nextion-file-input label:hover {
+            background: #ff980020;
+        }
+        .nextion-file-input label.has-file {
+            border-style: solid;
+            color: #ffb74d;
+        }
+        .nextion-file-input input {
+            display: none;
+        }
         .report-section {
             background: #252540;
             border-radius: 12px;
@@ -434,6 +472,14 @@
                 <div class="step">
                     <div class="step-number display-step">5</div>
                     <div class="step-content">
+                        <div class="step-title">Update Nextion (optional)</div>
+                        <div class="step-desc">Keep DISPLAY USB connected, select .tft file and click Update</div>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <div class="step-number display-step">6</div>
+                    <div class="step-content">
                         <div class="step-title">Done!</div>
                         <div class="step-desc">Disconnect and restart the Ballgun</div>
                     </div>
@@ -499,6 +545,35 @@
                 </div>
             </div>
 
+            <!-- NEXTION Panel -->
+            <div class="device-panel nextion" style="width:100%;">
+                <h2>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>
+                    </svg>
+                    NEXTION Display Update <span style="font-size:0.65em; opacity:0.7;">via USB Bridge</span>
+                </h2>
+
+                <div class="status">
+                    <div class="status-dot" id="nextionStatusDot"></div>
+                    <span id="nextionStatusText">Disconnected</span>
+                </div>
+
+                <button class="btn-update nextion-btn" id="nextionUpdateBtn">
+                    Update Nextion Display (wazlley26.tft — 825 KB)
+                </button>
+
+                <div class="nextion-file-input" style="margin-top:8px;">
+                    <label id="nextionFileLabel" for="nextionFile">...or select a custom .tft file</label>
+                    <input type="file" id="nextionFile" accept=".tft">
+                </div>
+
+                <div class="progress" id="nextionProgress">
+                    <div class="progress-bar nextion" id="nextionProgressBar"></div>
+                </div>
+                <div class="chip-info" id="nextionInfo"></div>
+            </div>
+
             <!-- Console -->
             <div class="console-section">
                 <h2>Console</h2>
@@ -542,15 +617,15 @@
                             <div class="item-desc">Configure machine settings via Bluetooth</div>
                         </div>
                     </div>
-                    <div class="checklist-item manual-item" id="check-nextion">
+                    <div class="checklist-item nextion-item" id="check-nextion">
                         <div class="check-icon">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
                                 <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
                             </svg>
                         </div>
                         <div class="item-content">
-                            <div class="item-title">Update Nextion Display via SD Card</div>
-                            <div class="item-desc">Copy .tft file to SD card and insert into display</div>
+                            <div class="item-title">Update Nextion Display via USB</div>
+                            <div class="item-desc">Upload .tft firmware through ESP32 DISPLAY USB bridge</div>
                         </div>
                     </div>
                     <div class="checklist-item manual-item" id="check-autopairing">
@@ -883,9 +958,6 @@
         document.getElementById('check-parameters').addEventListener('click', function() {
             this.classList.toggle('completed');
         });
-        document.getElementById('check-nextion').addEventListener('click', function() {
-            this.classList.toggle('completed');
-        });
         document.getElementById('check-autopairing').addEventListener('click', function() {
             this.classList.toggle('completed');
         });
@@ -896,7 +968,7 @@
                 { id: 'check-driver', label: 'Update DRIVER (Roller)' },
                 { id: 'check-display', label: 'Update DISPLAY' },
                 { id: 'check-parameters', label: 'Update Parameters via RobotVolley-Lite' },
-                { id: 'check-nextion', label: 'Update Nextion Display via SD Card' },
+                { id: 'check-nextion', label: 'Update Nextion Display via USB' },
                 { id: 'check-autopairing', label: 'Autopairing Verified' }
             ];
 
@@ -983,6 +1055,337 @@
                 printWindow.print();
             };
         });
+
+        // ============================================================
+        // NEXTION UPDATE via USB Bridge
+        // ============================================================
+        let nextionPort = null;
+        let nextionReader = null;
+        let nextionWriter = null;
+        let nextionTftFile = null;  // custom file override
+        let nextionRxBuffer = new Uint8Array(0);
+        const NEXTION_DEFAULT_TFT = 'NEXTION/wazlley26.tft';
+        const NEXTION_DEFAULT_NAME = 'wazlley26.tft';
+
+        // File picker (optional custom file)
+        document.getElementById('nextionFile').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                nextionTftFile = file;
+                const label = document.getElementById('nextionFileLabel');
+                label.textContent = `Custom: ${file.name} (${(file.size / 1024).toFixed(0)} KB)`;
+                label.classList.add('has-file');
+                document.getElementById('nextionUpdateBtn').textContent = `Update Nextion Display (${file.name})`;
+            }
+        });
+
+        // Download default TFT from server
+        async function nextionDownloadDefaultTft() {
+            const url = `${FIRMWARE_BASE_URL}/${NEXTION_DEFAULT_TFT}`;
+            log(`Downloading ${NEXTION_DEFAULT_NAME}...`, 'display');
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Failed to download ${NEXTION_DEFAULT_NAME}: ${response.status}`);
+            const arrayBuffer = await response.arrayBuffer();
+            log(`Downloaded ${(arrayBuffer.byteLength / 1024).toFixed(0)} KB`, 'display');
+            return { data: new Uint8Array(arrayBuffer), size: arrayBuffer.byteLength, name: NEXTION_DEFAULT_NAME };
+        }
+
+        // Update button
+        document.getElementById('nextionUpdateBtn').addEventListener('click', async () => {
+            let tftData;
+            if (nextionTftFile) {
+                // Use custom file
+                const buf = await nextionTftFile.arrayBuffer();
+                tftData = { data: new Uint8Array(buf), size: buf.byteLength, name: nextionTftFile.name };
+            } else {
+                // Download default from server
+                try {
+                    tftData = await nextionDownloadDefaultTft();
+                } catch (e) {
+                    log(`Error: ${e.message}`, 'display');
+                    return;
+                }
+            }
+            await nextionUpdate(tftData);
+        });
+
+        function nextionSetStatus(text, connected) {
+            document.getElementById('nextionStatusText').textContent = text;
+            const dot = document.getElementById('nextionStatusDot');
+            if (connected) dot.classList.add('connected');
+            else dot.classList.remove('connected');
+        }
+
+        function nextionSetProgress(percent) {
+            const p = document.getElementById('nextionProgress');
+            const bar = document.getElementById('nextionProgressBar');
+            p.style.display = 'block';
+            bar.style.width = `${percent}%`;
+        }
+
+        function nextionHideProgress() {
+            document.getElementById('nextionProgress').style.display = 'none';
+            document.getElementById('nextionProgressBar').style.width = '0%';
+        }
+
+        function nextionSetInfo(text) {
+            document.getElementById('nextionInfo').textContent = text;
+        }
+
+        // Append incoming bytes to rxBuffer
+        function nextionAppendRx(data) {
+            const merged = new Uint8Array(nextionRxBuffer.length + data.length);
+            merged.set(nextionRxBuffer);
+            merged.set(data, nextionRxBuffer.length);
+            nextionRxBuffer = merged;
+        }
+
+        // Read from serial until we get a specific string or timeout
+        async function nextionReadUntilString(target, timeoutMs = 10000) {
+            const deadline = Date.now() + timeoutMs;
+            const encoder = new TextDecoder();
+            while (Date.now() < deadline) {
+                try {
+                    const { value, done } = await Promise.race([
+                        nextionReader.read(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), Math.max(100, deadline - Date.now())))
+                    ]);
+                    if (done) throw new Error('Port closed');
+                    if (value && value.length > 0) {
+                        nextionAppendRx(value);
+                        const text = encoder.decode(nextionRxBuffer);
+                        if (text.includes(target)) {
+                            nextionRxBuffer = new Uint8Array(0);
+                            return text;
+                        }
+                    }
+                } catch (e) {
+                    if (e.message === 'timeout') continue;
+                    throw e;
+                }
+            }
+            const partial = new TextDecoder().decode(nextionRxBuffer);
+            nextionRxBuffer = new Uint8Array(0);
+            throw new Error(`Timeout waiting for "${target}" (got: "${partial.substring(0, 100)}")`);
+        }
+
+        // Read raw bytes until we find a specific byte or timeout
+        async function nextionReadUntilByte(targetByte, timeoutMs = 15000) {
+            const deadline = Date.now() + timeoutMs;
+            while (Date.now() < deadline) {
+                // Check existing buffer
+                for (let i = 0; i < nextionRxBuffer.length; i++) {
+                    if (nextionRxBuffer[i] === targetByte) {
+                        const result = nextionRxBuffer.slice(0, i + 1);
+                        nextionRxBuffer = nextionRxBuffer.slice(i + 1);
+                        return result;
+                    }
+                }
+                try {
+                    const { value, done } = await Promise.race([
+                        nextionReader.read(),
+                        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), Math.max(100, deadline - Date.now())))
+                    ]);
+                    if (done) throw new Error('Port closed');
+                    if (value && value.length > 0) {
+                        nextionAppendRx(value);
+                    }
+                } catch (e) {
+                    if (e.message === 'timeout') continue;
+                    throw e;
+                }
+            }
+            throw new Error(`Timeout waiting for byte 0x${targetByte.toString(16).padStart(2, '0')}`);
+        }
+
+        // Drain any pending data
+        async function nextionDrainRx(ms = 200) {
+            nextionRxBuffer = new Uint8Array(0);
+            const deadline = Date.now() + ms;
+            while (Date.now() < deadline) {
+                try {
+                    const { value } = await Promise.race([
+                        nextionReader.read(),
+                        new Promise(resolve => setTimeout(() => resolve({ value: null }), Math.max(10, deadline - Date.now())))
+                    ]);
+                    if (!value) break;
+                } catch { break; }
+            }
+        }
+
+        // Send raw bytes
+        async function nextionSendRaw(data) {
+            await nextionWriter.write(data instanceof Uint8Array ? data : new TextEncoder().encode(data));
+        }
+
+        // Send Nextion command (appends 0xFF 0xFF 0xFF terminator)
+        async function nextionSendCmd(cmd) {
+            const cmdBytes = new TextEncoder().encode(cmd);
+            const packet = new Uint8Array(cmdBytes.length + 3);
+            packet.set(cmdBytes);
+            packet[cmdBytes.length] = 0xFF;
+            packet[cmdBytes.length + 1] = 0xFF;
+            packet[cmdBytes.length + 2] = 0xFF;
+            await nextionWriter.write(packet);
+        }
+
+        async function nextionUpdate(tftData) {
+            // tftData = { data: Uint8Array, size: number, name: string }
+            const updateBtn = document.getElementById('nextionUpdateBtn');
+            updateBtn.disabled = true;
+
+            log('\n========================================', 'display');
+            log(`  NEXTION DISPLAY UPDATE (${tftData.name})`, 'display');
+            log('========================================\n', 'display');
+
+            try {
+                // Step 1: Open serial port
+                log('Step 1: Connect to ESP32 DISPLAY via USB...', 'display');
+                nextionSetStatus('Connecting...', false);
+
+                nextionPort = await navigator.serial.requestPort();
+                await nextionPort.open({ baudRate: 115200 });
+
+                nextionReader = nextionPort.readable.getReader();
+                nextionWriter = nextionPort.writable.getWriter();
+                nextionRxBuffer = new Uint8Array(0);
+
+                nextionSetStatus('Connected to ESP32', true);
+                nextionSetProgress(5);
+                log('Serial port opened at 115200 baud', 'display');
+
+                // Wait a moment for ESP32 to boot/stabilize
+                await new Promise(r => setTimeout(r, 500));
+                await nextionDrainRx(500);
+
+                // Step 2: Enter passthrough mode
+                log('Step 2: Entering Nextion passthrough mode...', 'display');
+                await nextionSendRaw('NEXTION_UPDATE\n');
+
+                const readyResponse = await nextionReadUntilString('NEXTION_READY', 5000);
+                log('ESP32 passthrough mode active', 'display');
+                nextionSetProgress(10);
+                nextionSetStatus('Passthrough active', true);
+
+                // Drain any leftover
+                await nextionDrainRx(300);
+
+                // Step 3: Connect to Nextion display
+                log('Step 3: Connecting to Nextion display...', 'display');
+
+                // Send empty terminator to wake up Nextion
+                await nextionSendCmd('');
+                await new Promise(r => setTimeout(r, 100));
+                await nextionDrainRx(200);
+
+                // Send connect command
+                await nextionSendCmd('connect');
+                log('Sent: connect', 'display');
+
+                // Wait for Nextion response (comok...)
+                let connectResponse;
+                try {
+                    connectResponse = await nextionReadUntilByte(0xFF, 5000);
+                    const respText = new TextDecoder().decode(connectResponse);
+                    log(`Nextion response: ${respText.replace(/[\xff]/g, '')}`, 'display');
+                } catch (e) {
+                    // Some Nextion models respond differently, try to continue
+                    log(`Warning: ${e.message} - attempting to continue...`, 'display');
+                }
+                nextionSetProgress(15);
+
+                await nextionDrainRx(200);
+
+                // Step 4: Send whmi-wris command to start upload
+                const fileSize = tftData.size;
+                const uploadCmd = `whmi-wris ${fileSize},115200,0`;
+                log(`Step 4: Starting upload (${(fileSize / 1024).toFixed(0)} KB)...`, 'display');
+                log(`Sent: ${uploadCmd}`, 'display');
+                await nextionSendCmd(uploadCmd);
+
+                // Wait for 0x05 (ready to receive data)
+                log('Waiting for Nextion ready signal (0x05)...', 'display');
+                await nextionReadUntilByte(0x05, 15000);
+                log('Nextion ready for data!', 'display');
+                nextionSetProgress(20);
+
+                // Step 5: Send .tft file in 4096-byte chunks
+                log('Step 5: Uploading .tft firmware...', 'display');
+                const fileData = tftData.data;
+                const chunkSize = 4096;
+                const totalChunks = Math.ceil(fileData.length / chunkSize);
+                let bytesSent = 0;
+
+                for (let i = 0; i < totalChunks; i++) {
+                    const start = i * chunkSize;
+                    const end = Math.min(start + chunkSize, fileData.length);
+                    const chunk = fileData.slice(start, end);
+
+                    await nextionWriter.write(chunk);
+                    bytesSent += chunk.length;
+
+                    // Wait for 0x05 ACK from Nextion
+                    try {
+                        await nextionReadUntilByte(0x05, 20000);
+                    } catch (e) {
+                        throw new Error(`Nextion did not ACK chunk ${i + 1}/${totalChunks}: ${e.message}`);
+                    }
+
+                    const percent = 20 + Math.round((bytesSent / fileData.length) * 75);
+                    nextionSetProgress(percent);
+                    nextionSetInfo(`${bytesSent} / ${fileData.length} bytes (${Math.round(bytesSent / fileData.length * 100)}%)`);
+
+                    if ((i + 1) % 50 === 0 || i === totalChunks - 1) {
+                        log(`  Chunk ${i + 1}/${totalChunks} (${Math.round(bytesSent / 1024)} KB)`, 'display');
+                    }
+                }
+
+                nextionSetProgress(97);
+                log('Upload complete! Nextion is installing firmware...', 'display');
+                nextionSetStatus('Upload complete', true);
+
+                // Give Nextion time to finalize
+                await new Promise(r => setTimeout(r, 2000));
+
+                // Step 6: Exit passthrough mode
+                log('Step 6: Exiting passthrough mode...', 'display');
+                await nextionSendRaw('NEXTION_EXIT\n');
+                await new Promise(r => setTimeout(r, 500));
+
+                nextionSetProgress(100);
+                log('\n========================================', 'display');
+                log('  NEXTION UPDATE COMPLETE!', 'display');
+                log('========================================\n', 'display');
+                log('The Nextion display will restart automatically.', 'display');
+
+                nextionSetStatus('Update complete!', true);
+                nextionSetInfo('Nextion firmware updated successfully');
+                markChecklistComplete('check-nextion');
+
+                setTimeout(() => nextionHideProgress(), 3000);
+
+            } catch (error) {
+                log(`\nError: ${error.message}`, 'display');
+                nextionSetStatus('Error', false);
+                nextionSetInfo(error.message);
+                nextionHideProgress();
+
+                // Try to exit passthrough mode on error
+                try {
+                    if (nextionWriter) {
+                        await nextionSendRaw('NEXTION_EXIT\n');
+                    }
+                } catch {}
+            } finally {
+                // Cleanup serial port
+                try {
+                    if (nextionReader) { nextionReader.releaseLock(); nextionReader = null; }
+                    if (nextionWriter) { nextionWriter.releaseLock(); nextionWriter = null; }
+                    if (nextionPort) { await nextionPort.close(); nextionPort = null; }
+                } catch {}
+                updateBtn.disabled = false;
+            }
+        }
 
         // Initial log
         log('Ballgun Web Flasher ready');
