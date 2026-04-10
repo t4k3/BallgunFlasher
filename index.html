@@ -1365,6 +1365,19 @@
                 // Drain any leftover
                 await nextionDrainRx(300);
 
+                // Reset burst: force Nextion out of any stuck upload/command state
+                // (handles case where previous update failed and display is in limbo)
+                log('Sending reset burst to Nextion...', 'display');
+                const resetBurst = new Uint8Array([
+                    0x00, 0xFF, 0xFF, 0xFF,  // NUL command + terminator
+                    0xFF, 0xFF, 0xFF,          // bare terminator
+                    0xFF, 0xFF, 0xFF,          // bare terminator
+                    0x00, 0xFF, 0xFF, 0xFF,  // NUL command + terminator
+                ]);
+                await nextionWriter.write(resetBurst);
+                await new Promise(r => setTimeout(r, 200));
+                await nextionDrainRx(300);
+
                 // Step 3: Connect to Nextion display - try multiple baud rates
                 log('Step 3: Connecting to Nextion display...', 'display');
                 const baudRates = [9600, 115200, 38400, 57600, 4800, 19200];
@@ -1419,8 +1432,17 @@
 
                 // Wait for 0x05 (ready to receive data)
                 log('Waiting for Nextion ready signal (0x05)...', 'display');
-                await nextionReadUntilByte(0x05, 15000);
-                log('Nextion ready for data!', 'display');
+                const whmiResp = await nextionReadUntilByte(0x05, 15000);
+                const whmiHex = Array.from(whmiResp).map(b => b.toString(16).padStart(2,'0')).join(' ');
+                log(`Nextion ready! (whmi response: [${whmiHex}])`, 'display');
+
+                // Drain any trailing bytes after 0x05 (some Nextion models send extra status)
+                await new Promise(r => setTimeout(r, 500));
+                if (nextionRxBuffer.length > 0) {
+                    const extraHex = Array.from(nextionRxBuffer.slice(0, 32)).map(b => b.toString(16).padStart(2,'0')).join(' ');
+                    log(`  Drained ${nextionRxBuffer.length} extra bytes after 0x05: [${extraHex}]`, 'display');
+                }
+                nextionRxBuffer = new Uint8Array(0);
                 nextionSetProgress(20);
 
                 // Step 5: Send .tft file in 4096-byte chunks
@@ -1440,6 +1462,9 @@
 
                     await nextionWriter.write(chunk);
                     bytesSent += chunk.length;
+
+                    // Brief delay to let ESP32 bridge flush chunk to UART
+                    await new Promise(r => setTimeout(r, 50));
 
                     // Wait for 0x05 ACK from Nextion with diagnostics
                     const chunkStart = Date.now();
