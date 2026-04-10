@@ -1195,57 +1195,67 @@
             document.getElementById('nextionInfo').textContent = text;
         }
 
-        // Append incoming bytes to rxBuffer
-        function nextionAppendRx(data) {
-            const merged = new Uint8Array(nextionRxBuffer.length + data.length);
-            merged.set(nextionRxBuffer);
-            merged.set(data, nextionRxBuffer.length);
-            nextionRxBuffer = merged;
-            // Log debug messages from ESP32 bridge
-            const text = new TextDecoder().decode(data);
-            if (text.includes('DBG_TX:') || text.includes('DBG_RX:') || text.includes('BAUD_OK')) {
-                for (const line of text.split('\n')) {
-                    if (line.startsWith('DBG_') || line.startsWith('BAUD_')) {
-                        log(`  [ESP32] ${line}`, 'display');
+        // Background read pump: continuously reads from serial into rxBuffer
+        // This avoids the broken Promise.race + reader.read() pattern
+        let nextionPumpRunning = false;
+
+        function nextionStartPump() {
+            if (nextionPumpRunning) return;
+            nextionPumpRunning = true;
+            (async () => {
+                while (nextionPumpRunning && nextionReader) {
+                    try {
+                        const { value, done } = await nextionReader.read();
+                        if (done) { nextionPumpRunning = false; break; }
+                        if (value && value.length > 0) {
+                            // Append to buffer
+                            const merged = new Uint8Array(nextionRxBuffer.length + value.length);
+                            merged.set(nextionRxBuffer);
+                            merged.set(value, nextionRxBuffer.length);
+                            nextionRxBuffer = merged;
+                            // Log debug messages from ESP32 bridge
+                            const text = new TextDecoder().decode(value);
+                            if (text.includes('DBG_TX:') || text.includes('DBG_RX:') || text.includes('BAUD_')) {
+                                for (const line of text.split('\n')) {
+                                    if (line.startsWith('DBG_') || line.startsWith('BAUD_')) {
+                                        log(`  [ESP32] ${line}`, 'display');
+                                    }
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        nextionPumpRunning = false;
+                        break;
                     }
                 }
-            }
+            })();
         }
 
-        // Read from serial until we get a specific string or timeout
+        function nextionStopPump() {
+            nextionPumpRunning = false;
+        }
+
+        // Wait for a string to appear in rxBuffer
         async function nextionReadUntilString(target, timeoutMs = 10000) {
             const deadline = Date.now() + timeoutMs;
-            const encoder = new TextDecoder();
             while (Date.now() < deadline) {
-                try {
-                    const { value, done } = await Promise.race([
-                        nextionReader.read(),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), Math.max(100, deadline - Date.now())))
-                    ]);
-                    if (done) throw new Error('Port closed');
-                    if (value && value.length > 0) {
-                        nextionAppendRx(value);
-                        const text = encoder.decode(nextionRxBuffer);
-                        if (text.includes(target)) {
-                            nextionRxBuffer = new Uint8Array(0);
-                            return text;
-                        }
-                    }
-                } catch (e) {
-                    if (e.message === 'timeout') continue;
-                    throw e;
+                const text = new TextDecoder().decode(nextionRxBuffer);
+                if (text.includes(target)) {
+                    const result = text;
+                    nextionRxBuffer = new Uint8Array(0);
+                    return result;
                 }
+                await new Promise(r => setTimeout(r, 50));
             }
             const partial = new TextDecoder().decode(nextionRxBuffer);
             nextionRxBuffer = new Uint8Array(0);
             throw new Error(`Timeout waiting for "${target}" (got: "${partial.substring(0, 100)}")`);
         }
 
-        // Read raw bytes until we find a specific byte or timeout
+        // Wait for a specific byte to appear in rxBuffer
         async function nextionReadUntilByte(targetByte, timeoutMs = 15000) {
             const deadline = Date.now() + timeoutMs;
             while (Date.now() < deadline) {
-                // Check existing buffer
                 for (let i = 0; i < nextionRxBuffer.length; i++) {
                     if (nextionRxBuffer[i] === targetByte) {
                         const result = nextionRxBuffer.slice(0, i + 1);
@@ -1253,36 +1263,16 @@
                         return result;
                     }
                 }
-                try {
-                    const { value, done } = await Promise.race([
-                        nextionReader.read(),
-                        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), Math.max(100, deadline - Date.now())))
-                    ]);
-                    if (done) throw new Error('Port closed');
-                    if (value && value.length > 0) {
-                        nextionAppendRx(value);
-                    }
-                } catch (e) {
-                    if (e.message === 'timeout') continue;
-                    throw e;
-                }
+                await new Promise(r => setTimeout(r, 20));
             }
             throw new Error(`Timeout waiting for byte 0x${targetByte.toString(16).padStart(2, '0')}`);
         }
 
-        // Drain any pending data
+        // Drain: just clear the buffer and wait a bit for more data to arrive
         async function nextionDrainRx(ms = 200) {
             nextionRxBuffer = new Uint8Array(0);
-            const deadline = Date.now() + ms;
-            while (Date.now() < deadline) {
-                try {
-                    const { value } = await Promise.race([
-                        nextionReader.read(),
-                        new Promise(resolve => setTimeout(() => resolve({ value: null }), Math.max(10, deadline - Date.now())))
-                    ]);
-                    if (!value) break;
-                } catch { break; }
-            }
+            await new Promise(r => setTimeout(r, ms));
+            nextionRxBuffer = new Uint8Array(0);
         }
 
         // Send raw bytes
@@ -1321,6 +1311,7 @@
                 nextionReader = nextionPort.readable.getReader();
                 nextionWriter = nextionPort.writable.getWriter();
                 nextionRxBuffer = new Uint8Array(0);
+                nextionStartPump();  // Start background read pump
 
                 nextionSetStatus('Connected to ESP32', true);
                 nextionSetProgress(5);
@@ -1494,8 +1485,9 @@
                 } catch {}
             } finally {
                 // Cleanup serial port
+                nextionStopPump();
                 try {
-                    if (nextionReader) { nextionReader.releaseLock(); nextionReader = null; }
+                    if (nextionReader) { await nextionReader.cancel(); nextionReader.releaseLock(); nextionReader = null; }
                     if (nextionWriter) { nextionWriter.releaseLock(); nextionWriter = null; }
                     if (nextionPort) { await nextionPort.close(); nextionPort = null; }
                 } catch {}
