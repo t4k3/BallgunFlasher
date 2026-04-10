@@ -913,9 +913,19 @@
 
                 setTimeout(() => hideProgress(deviceType), 3000);
 
+                // Save port reference before disconnect (for Nextion reuse)
+                const flashedPort = dev.device;
+
                 // Auto-disconnect after successful update
                 await disconnect(deviceType);
-                log(`Disconnected. You can now unplug the USB cable.`, deviceType);
+
+                // If DISPLAY was flashed, save port for Nextion panel reuse
+                if (deviceType === 'display' && flashedPort) {
+                    nextionPort = flashedPort;
+                    log('Port saved for Nextion update — no USB replug needed', deviceType);
+                } else {
+                    log('Disconnected. You can now unplug the USB cable.', deviceType);
+                }
 
                 // Mark checklist item as completed
                 markChecklistComplete(`check-${deviceType}`);
@@ -1312,8 +1322,28 @@
                 log('Step 1: Connect to ESP32 DISPLAY via USB...', 'display');
                 nextionSetStatus('Connecting...', false);
 
-                nextionPort = await navigator.serial.requestPort();
-                await nextionPort.open({ baudRate: 115200 });
+                // Reuse port from DISPLAY flash if available, otherwise ask user
+                if (nextionPort) {
+                    log('Reusing port from DISPLAY flash...', 'display');
+                    // Port was saved after DISPLAY flash — wait for ESP32 reboot
+                    await new Promise(r => setTimeout(r, 3000));
+                    // Try to open (may need retry as USB re-enumerates after reboot)
+                    for (let retry = 0; retry < 5; retry++) {
+                        try {
+                            await nextionPort.open({ baudRate: 115200 });
+                            break;
+                        } catch (e) {
+                            if (retry < 4) {
+                                await new Promise(r => setTimeout(r, 1000));
+                            } else {
+                                throw new Error('Could not reopen port after DISPLAY flash. Try unplugging and replugging USB.');
+                            }
+                        }
+                    }
+                } else {
+                    nextionPort = await navigator.serial.requestPort();
+                    await nextionPort.open({ baudRate: 115200 });
+                }
 
                 nextionReader = nextionPort.readable.getReader();
                 nextionWriter = nextionPort.writable.getWriter();
@@ -1324,7 +1354,7 @@
                 nextionSetProgress(5);
                 log('Serial port opened at 115200 baud', 'display');
 
-                // Wait for ESP32 to boot and stabilize after flash
+                // Wait for ESP32 to boot and stabilize
                 log('Waiting for ESP32 to boot...', 'display');
                 await new Promise(r => setTimeout(r, 2000));
                 await nextionDrainRx(1000);
