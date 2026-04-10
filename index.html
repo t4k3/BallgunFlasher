@@ -1367,7 +1367,7 @@
 
                 // Reset burst: force Nextion out of any stuck upload/command state
                 // (handles case where previous update failed and display is in limbo)
-                log('Sending reset burst to Nextion...', 'display');
+                // Reset burst: force Nextion out of any stuck state
                 const resetBurst = new Uint8Array([
                     0x00, 0xFF, 0xFF, 0xFF,  // NUL command + terminator
                     0xFF, 0xFF, 0xFF,          // bare terminator
@@ -1420,13 +1420,6 @@
                     throw new Error('Nextion display did not respond at any baud rate. Check UART connection.');
                 }
                 nextionSetProgress(15);
-
-                // Diagnostic: wait and dump residual bytes after connect
-                await new Promise(r => setTimeout(r, 500));
-                if (nextionRxBuffer.length > 0) {
-                    const residHex = Array.from(nextionRxBuffer.slice(0, 64)).map(b => b.toString(16).padStart(2,'0')).join(' ');
-                    log(`  [CONNECT-RESIDUAL] ${nextionRxBuffer.length}B after comok: [${residHex}]`, 'display');
-                }
                 await nextionDrainRx(200);
 
                 // Step 4: Send whmi-wris command (protocol v1.2 for Intelligent series)
