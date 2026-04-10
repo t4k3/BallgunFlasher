@@ -550,7 +550,7 @@
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                         <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>
                     </svg>
-                    NEXTION Display Update <span style="font-size:0.65em; opacity:0.7;">via USB Bridge</span>
+                    NEXTION <span style="font-size:0.65em; opacity:0.7;">via USB Bridge</span>
                 </h2>
 
                 <div class="status">
@@ -558,11 +558,11 @@
                     <span id="nextionStatusText">Disconnected</span>
                 </div>
 
-                <button class="btn-connect" id="nextionTestBtn" style="background:#ff9800;color:#1a1a2e;">
-                    Test USB Connection
+                <button class="btn-connect" id="nextionConnectBtn">
+                    Connect NEXTION
                 </button>
-                <button class="btn-update nextion-btn" id="nextionUpdateBtn">
-                    Update Nextion Display (wazlley26.tft — 825 KB)
+                <button class="btn-update nextion-btn" id="nextionUpdateBtn" disabled>
+                    Update Nextion Display
                 </button>
 
                 <div class="nextion-file-input" style="margin-top:8px;">
@@ -1096,85 +1096,64 @@
             return { data: new Uint8Array(arrayBuffer), size: arrayBuffer.byteLength, name: NEXTION_DEFAULT_NAME };
         }
 
-        // Test USB connection - just read and display everything
-        document.getElementById('nextionTestBtn').addEventListener('click', async () => {
-            let port, reader;
+        // Connect to ESP32 DISPLAY for Nextion update
+        document.getElementById('nextionConnectBtn').addEventListener('click', async () => {
+            const connectBtn = document.getElementById('nextionConnectBtn');
+            const updateBtn = document.getElementById('nextionUpdateBtn');
+
+            // If already connected, disconnect
+            if (nextionPort) {
+                try {
+                    nextionStopPump();
+                    if (nextionReader) { await nextionReader.cancel(); nextionReader.releaseLock(); nextionReader = null; }
+                    if (nextionWriter) { nextionWriter.releaseLock(); nextionWriter = null; }
+                    await nextionPort.close();
+                } catch {}
+                nextionPort = null;
+                connectBtn.textContent = 'Connect NEXTION';
+                updateBtn.disabled = true;
+                nextionSetStatus('Disconnected', false);
+                nextionSetInfo('');
+                return;
+            }
+
             try {
-                log('\n--- USB CONNECTION TEST ---', 'display');
-                port = await navigator.serial.requestPort();
-                await port.open({ baudRate: 115200 });
-                reader = port.readable.getReader();
-                log('Port opened. Reading for 5 seconds...', 'display');
-
-                const deadline = Date.now() + 5000;
-                let totalBytes = 0;
-                while (Date.now() < deadline) {
-                    try {
-                        const { value, done } = await Promise.race([
-                            reader.read(),
-                            new Promise(r => setTimeout(() => r({ value: null, done: false }), 500))
-                        ]);
-                        if (value && value.length > 0) {
-                            totalBytes += value.length;
-                            const text = new TextDecoder().decode(value);
-                            const hex = Array.from(value).map(b => b.toString(16).padStart(2,'0')).join(' ');
-                            log(`RX ${value.length}B: "${text.replace(/[^\x20-\x7e]/g,'.')}" [${hex}]`, 'display');
-                        }
-                    } catch { break; }
+                // If DISPLAY was just flashed, remind to reconnect USB
+                if (devices.display.justFlashed) {
+                    const proceed = confirm(
+                        'DISPLAY was just flashed — USB needs to be reconnected:\n\n' +
+                        '1. Disconnect the USB cable\n' +
+                        '2. Reconnect the USB cable\n' +
+                        '3. Click OK to proceed'
+                    );
+                    if (!proceed) return;
+                    devices.display.justFlashed = false;
                 }
 
-                log(`Total received: ${totalBytes} bytes`, 'display');
+                nextionSetStatus('Connecting...', false);
+                nextionPort = await navigator.serial.requestPort();
+                await nextionPort.open({ baudRate: 115200 });
+                nextionReader = nextionPort.readable.getReader();
+                nextionWriter = nextionPort.writable.getWriter();
+                nextionRxBuffer = new Uint8Array(0);
+                nextionStartPump();
 
-                // Now try sending NEXTION_UPDATE
-                log('Sending NEXTION_UPDATE...', 'display');
-                const writer = port.writable.getWriter();
-                await writer.write(new TextEncoder().encode('NEXTION_UPDATE\n'));
-                writer.releaseLock();
-
-                // Read response for 3 more seconds
-                const deadline2 = Date.now() + 3000;
-                while (Date.now() < deadline2) {
-                    try {
-                        const { value } = await Promise.race([
-                            reader.read(),
-                            new Promise(r => setTimeout(() => r({ value: null }), 500))
-                        ]);
-                        if (value && value.length > 0) {
-                            const text = new TextDecoder().decode(value);
-                            const hex = Array.from(value).map(b => b.toString(16).padStart(2,'0')).join(' ');
-                            log(`RX ${value.length}B: "${text.replace(/[^\x20-\x7e]/g,'.')}" [${hex}]`, 'display');
-                        }
-                    } catch { break; }
-                }
-
-                // Send EXIT to leave passthrough mode
-                log('Sending NEXTION_EXIT...', 'display');
-                const writer2 = port.writable.getWriter();
-                await writer2.write(new TextEncoder().encode('NEXTION_EXIT\n'));
-                writer2.releaseLock();
-                await new Promise(r => setTimeout(r, 500));
-
-                log('--- TEST COMPLETE ---\n', 'display');
+                nextionSetStatus('Connected', true);
+                connectBtn.textContent = 'Disconnect';
+                updateBtn.disabled = false;
+                log('NEXTION: Serial port connected at 115200 baud', 'display');
             } catch (e) {
-                log(`Test error: ${e.message}`, 'display');
-            } finally {
-                try { if (reader) reader.releaseLock(); } catch {}
-                try { if (port) await port.close(); } catch {}
+                nextionSetStatus('Connection failed', false);
+                log(`NEXTION connect error: ${e.message}`, 'display');
+                nextionPort = null;
             }
         });
 
         // Update button
         document.getElementById('nextionUpdateBtn').addEventListener('click', async () => {
-            // If DISPLAY was just flashed in this session, remind to reconnect USB
-            if (devices.display.justFlashed) {
-                const proceed = confirm(
-                    'DISPLAY was just flashed — USB needs to be reconnected:\n\n' +
-                    '1. Disconnect the USB cable\n' +
-                    '2. Reconnect the USB cable\n' +
-                    '3. Click OK to proceed'
-                );
-                if (!proceed) return;
-                devices.display.justFlashed = false;
+            if (!nextionPort) {
+                log('NEXTION: Not connected. Click "Connect NEXTION" first.', 'display');
+                return;
             }
 
             let tftData;
@@ -1323,28 +1302,12 @@
             log('========================================\n', 'display');
 
             try {
-                // Step 1: Open serial port
-                log('Step 1: Connect to ESP32 DISPLAY via USB...', 'display');
-                nextionSetStatus('Connecting...', false);
-
-                // Reuse port from DISPLAY flash if available, otherwise ask user
-                // Always request port (ESP32-C6 USB JTAG re-enumerates after reset)
-                nextionPort = await navigator.serial.requestPort();
-                await nextionPort.open({ baudRate: 115200 });
-
-                nextionReader = nextionPort.readable.getReader();
-                nextionWriter = nextionPort.writable.getWriter();
-                nextionRxBuffer = new Uint8Array(0);
-                nextionStartPump();  // Start background read pump
-
-                nextionSetStatus('Connected to ESP32', true);
+                // Step 1: Port already connected via Connect button
+                log('Step 1: Using connected ESP32 DISPLAY...', 'display');
+                nextionSetStatus('Updating...', true);
                 nextionSetProgress(5);
-                log('Serial port opened at 115200 baud', 'display');
 
-                // Wait for ESP32 to fully boot (BLE, ESP-NOW, main loop)
-                log('Waiting for ESP32 to boot...', 'display');
-                await new Promise(r => setTimeout(r, 5000));
-                // Send dummy bytes to wake up USB Serial JTAG path
+                // Drain any stale data
                 await nextionSendRaw('\n\n\n');
                 await new Promise(r => setTimeout(r, 500));
                 await nextionDrainRx(1000);
@@ -1580,13 +1543,7 @@
                     }
                 } catch {}
             } finally {
-                // Cleanup serial port
-                nextionStopPump();
-                try {
-                    if (nextionReader) { await nextionReader.cancel(); nextionReader.releaseLock(); nextionReader = null; }
-                    if (nextionWriter) { nextionWriter.releaseLock(); nextionWriter = null; }
-                    if (nextionPort) { await nextionPort.close(); nextionPort = null; }
-                } catch {}
+                // Keep port open for potential re-use, just re-enable button
                 updateBtn.disabled = false;
             }
         }
