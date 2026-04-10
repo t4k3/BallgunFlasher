@@ -1325,16 +1325,18 @@
                 // Reuse port from DISPLAY flash if available, otherwise ask user
                 if (nextionPort) {
                     log('Reusing port from DISPLAY flash...', 'display');
-                    // Port was saved after DISPLAY flash — wait for ESP32 reboot
-                    await new Promise(r => setTimeout(r, 3000));
-                    // Try to open (may need retry as USB re-enumerates after reboot)
+                    // Wait for ESP32 to reboot and USB to re-enumerate
+                    log('Waiting for ESP32 to reboot after flash...', 'display');
+                    await new Promise(r => setTimeout(r, 5000));
+                    // Try to open (may need retry as USB re-enumerates)
                     for (let retry = 0; retry < 5; retry++) {
                         try {
                             await nextionPort.open({ baudRate: 115200 });
                             break;
                         } catch (e) {
                             if (retry < 4) {
-                                await new Promise(r => setTimeout(r, 1000));
+                                log(`  Port not ready, retrying... (${retry + 1}/5)`, 'display');
+                                await new Promise(r => setTimeout(r, 2000));
                             } else {
                                 throw new Error('Could not reopen port after DISPLAY flash. Try unplugging and replugging USB.');
                             }
@@ -1354,9 +1356,12 @@
                 nextionSetProgress(5);
                 log('Serial port opened at 115200 baud', 'display');
 
-                // Wait for ESP32 to boot and stabilize
+                // Wait for ESP32 to fully boot (BLE, ESP-NOW, main loop)
                 log('Waiting for ESP32 to boot...', 'display');
-                await new Promise(r => setTimeout(r, 2000));
+                await new Promise(r => setTimeout(r, 5000));
+                // Send dummy bytes to wake up USB Serial JTAG path
+                await nextionSendRaw('\n\n\n');
+                await new Promise(r => setTimeout(r, 500));
                 await nextionDrainRx(1000);
 
                 // Step 2: Enter passthrough mode (retry up to 3 times)
