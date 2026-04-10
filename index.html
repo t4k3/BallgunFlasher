@@ -1437,35 +1437,17 @@
                 log(`Sent: ${uploadCmd}`, 'display');
                 await nextionSendCmd(uploadCmd);
 
-                // DIAGNOSTIC: wait 3s and dump ALL bytes from Nextion after whmi-wris
-                log('Waiting for Nextion response to whmi-wris (3s diagnostic)...', 'display');
+                // Wait for 0x05 — send chunk ASAP after (Nextion may timeout if delayed)
+                log('Waiting for Nextion upload ACK (0x05)...', 'display');
                 nextionRxBuffer = new Uint8Array(0);
-                for (let diagSec = 0; diagSec < 6; diagSec++) {
-                    await new Promise(r => setTimeout(r, 500));
-                    if (nextionRxBuffer.length > 0) {
-                        const hex = Array.from(nextionRxBuffer.slice(0, 64)).map(b => b.toString(16).padStart(2,'0')).join(' ');
-                        log(`  [WHMI-DIAG] +${(diagSec+1)*0.5}s: ${nextionRxBuffer.length}B [${hex}]`, 'display');
-                    } else {
-                        log(`  [WHMI-DIAG] +${(diagSec+1)*0.5}s: 0B`, 'display');
-                    }
-                }
-                // Check if we got 0x05
-                let whmiGot05 = false;
-                for (let i = 0; i < nextionRxBuffer.length; i++) {
-                    if (nextionRxBuffer[i] === 0x05) { whmiGot05 = true; break; }
-                }
-                if (whmiGot05) {
-                    log('Nextion upload ACK (0x05) found — proceeding with upload', 'display');
-                } else {
-                    const hex = Array.from(nextionRxBuffer.slice(0, 64)).map(b => b.toString(16).padStart(2,'0')).join(' ');
-                    log(`WARNING: No 0x05 ACK received! Got ${nextionRxBuffer.length}B: [${hex}]`, 'display');
-                    log('Nextion may not be in upload mode. Trying anyway...', 'display');
-                }
-                nextionRxBuffer = new Uint8Array(0);
+                const whmiStart = Date.now();
+                await nextionReadUntilByte(0x05, 15000);
+                log(`Nextion ACK received in ${Date.now() - whmiStart}ms — sending data immediately`, 'display');
+                nextionRxBuffer = new Uint8Array(0);  // Clear any trailing bytes
                 nextionSetProgress(20);
 
                 // Step 5: Send .tft file in 4096-byte chunks
-                log(`Step 5: Uploading .tft firmware... [bridge v5-txbuf]`, 'display');
+                log(`Step 5: Uploading .tft firmware... [bridge v6-diag]`, 'display');
                 const fileData = tftData.data;
                 const chunkSize = 4096;
                 const totalChunks = Math.ceil(fileData.length / chunkSize);
@@ -1481,9 +1463,6 @@
 
                     await nextionWriter.write(chunk);
                     bytesSent += chunk.length;
-
-                    // Brief delay to let ESP32 bridge flush chunk to UART
-                    await new Promise(r => setTimeout(r, 50));
 
                     // Wait for 0x05 ACK from Nextion with diagnostics
                     const chunkStart = Date.now();
@@ -1510,6 +1489,14 @@
 
                     if (!gotAck) {
                         const bufHex = Array.from(nextionRxBuffer.slice(0, 64)).map(b => b.toString(16).padStart(2,'0')).join(' ');
+                        // Query ESP32 bridge byte counters for diagnostics
+                        try {
+                            nextionRxBuffer = new Uint8Array(0);
+                            await nextionSendRaw('NEXTION_STATUS\n');
+                            await new Promise(r => setTimeout(r, 500));
+                            const statusText = new TextDecoder().decode(nextionRxBuffer);
+                            log(`  [BRIDGE] ${statusText.trim()}`, 'display');
+                        } catch(e) { /* ignore status query errors */ }
                         throw new Error(`Chunk ${i+1}/${totalChunks} no ACK after 30s. rxBuf=${nextionRxBuffer.length}B [${bufHex}]`);
                     }
 
