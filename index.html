@@ -523,7 +523,7 @@
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M21 3H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h5v2h8v-2h5c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 14H3V5h18v12z"/>
                         </svg>
-                        DISPLAY (Display) <span style="font-size:0.65em; opacity:0.7;">v12.2.8</span>
+                        DISPLAY (Display) <span style="font-size:0.65em; opacity:0.7;">v12.2.9</span>
                     </h2>
 
                     <div class="status">
@@ -1138,6 +1138,15 @@
             merged.set(nextionRxBuffer);
             merged.set(data, nextionRxBuffer.length);
             nextionRxBuffer = merged;
+            // Log debug messages from ESP32 bridge
+            const text = new TextDecoder().decode(data);
+            if (text.includes('DBG_TX:') || text.includes('DBG_RX:') || text.includes('BAUD_OK')) {
+                for (const line of text.split('\n')) {
+                    if (line.startsWith('DBG_') || line.startsWith('BAUD_')) {
+                        log(`  [ESP32] ${line}`, 'display');
+                    }
+                }
+            }
         }
 
         // Read from serial until we get a specific string or timeout
