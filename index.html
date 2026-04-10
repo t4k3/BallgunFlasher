@@ -1144,6 +1144,13 @@
                     } catch { break; }
                 }
 
+                // Send EXIT to leave passthrough mode
+                log('Sending NEXTION_EXIT...', 'display');
+                const writer2 = port.writable.getWriter();
+                await writer2.write(new TextEncoder().encode('NEXTION_EXIT\n'));
+                writer2.releaseLock();
+                await new Promise(r => setTimeout(r, 500));
+
                 log('--- TEST COMPLETE ---\n', 'display');
             } catch (e) {
                 log(`Test error: ${e.message}`, 'display');
@@ -1433,7 +1440,7 @@
 
                     // Wait for 0x05 ACK from Nextion
                     try {
-                        await nextionReadUntilByte(0x05, 20000);
+                        await nextionReadUntilByte(0x05, 60000);
                     } catch (e) {
                         throw new Error(`Nextion did not ACK chunk ${i + 1}/${totalChunks}: ${e.message}`);
                     }
