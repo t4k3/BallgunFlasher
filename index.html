@@ -559,6 +559,9 @@
                     <span id="nextionStatusText">Disconnected</span>
                 </div>
 
+                <button class="btn-connect" id="nextionTestBtn" style="background:#ff9800;color:#1a1a2e;">
+                    Test USB Connection
+                </button>
                 <button class="btn-update nextion-btn" id="nextionUpdateBtn">
                     Update Nextion Display (wazlley26.tft — 825 KB)
                 </button>
@@ -1089,6 +1092,66 @@
             log(`Downloaded ${(arrayBuffer.byteLength / 1024).toFixed(0)} KB`, 'display');
             return { data: new Uint8Array(arrayBuffer), size: arrayBuffer.byteLength, name: NEXTION_DEFAULT_NAME };
         }
+
+        // Test USB connection - just read and display everything
+        document.getElementById('nextionTestBtn').addEventListener('click', async () => {
+            let port, reader;
+            try {
+                log('\n--- USB CONNECTION TEST ---', 'display');
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
+                reader = port.readable.getReader();
+                log('Port opened. Reading for 5 seconds...', 'display');
+
+                const deadline = Date.now() + 5000;
+                let totalBytes = 0;
+                while (Date.now() < deadline) {
+                    try {
+                        const { value, done } = await Promise.race([
+                            reader.read(),
+                            new Promise(r => setTimeout(() => r({ value: null, done: false }), 500))
+                        ]);
+                        if (value && value.length > 0) {
+                            totalBytes += value.length;
+                            const text = new TextDecoder().decode(value);
+                            const hex = Array.from(value).map(b => b.toString(16).padStart(2,'0')).join(' ');
+                            log(`RX ${value.length}B: "${text.replace(/[^\x20-\x7e]/g,'.')}" [${hex}]`, 'display');
+                        }
+                    } catch { break; }
+                }
+
+                log(`Total received: ${totalBytes} bytes`, 'display');
+
+                // Now try sending NEXTION_UPDATE
+                log('Sending NEXTION_UPDATE...', 'display');
+                const writer = port.writable.getWriter();
+                await writer.write(new TextEncoder().encode('NEXTION_UPDATE\n'));
+                writer.releaseLock();
+
+                // Read response for 3 more seconds
+                const deadline2 = Date.now() + 3000;
+                while (Date.now() < deadline2) {
+                    try {
+                        const { value } = await Promise.race([
+                            reader.read(),
+                            new Promise(r => setTimeout(() => r({ value: null }), 500))
+                        ]);
+                        if (value && value.length > 0) {
+                            const text = new TextDecoder().decode(value);
+                            const hex = Array.from(value).map(b => b.toString(16).padStart(2,'0')).join(' ');
+                            log(`RX ${value.length}B: "${text.replace(/[^\x20-\x7e]/g,'.')}" [${hex}]`, 'display');
+                        }
+                    } catch { break; }
+                }
+
+                log('--- TEST COMPLETE ---\n', 'display');
+            } catch (e) {
+                log(`Test error: ${e.message}`, 'display');
+            } finally {
+                try { if (reader) reader.releaseLock(); } catch {}
+                try { if (port) await port.close(); } catch {}
+            }
+        });
 
         // Update button
         document.getElementById('nextionUpdateBtn').addEventListener('click', async () => {
