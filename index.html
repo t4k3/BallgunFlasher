@@ -1424,7 +1424,7 @@
                 nextionSetProgress(20);
 
                 // Step 5: Send .tft file in 4096-byte chunks
-                log(`Step 5: Uploading .tft firmware... [bridge v4-wdt-fix]`, 'display');
+                log(`Step 5: Uploading .tft firmware... [bridge v5-txbuf]`, 'display');
                 const fileData = tftData.data;
                 const chunkSize = 4096;
                 const totalChunks = Math.ceil(fileData.length / chunkSize);
