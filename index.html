@@ -1276,10 +1276,18 @@
                     await nextionDrainRx(200);
                     await nextionSendRaw('NEXTION_UPDATE\n');
                     try {
-                        await nextionReadUntilString('NEXTION_READY', 5000);
+                        // Accept either NEXTION_READY or the ESP_LOGI confirmation
+                        const resp = await nextionReadUntilString('NEXTION_READY', 3000);
                         passthroughOk = true;
                         break;
                     } catch (e) {
+                        // Check if ESP_LOGI passthrough message was received (USB interleave)
+                        const partial = e.message;
+                        if (partial.includes('passthrough ACTIVE')) {
+                            log('Passthrough confirmed via ESP log', 'display');
+                            passthroughOk = true;
+                            break;
+                        }
                         log(`Attempt ${attempt}: ${e.message}`, 'display');
                         if (attempt < 3) {
                             await new Promise(r => setTimeout(r, 1000));
