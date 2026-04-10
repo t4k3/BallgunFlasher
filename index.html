@@ -1429,85 +1429,106 @@
                 }
                 await nextionDrainRx(200);
 
-                // Step 4: Send whmi-wris command to start upload (upload at detected baud)
+                // Step 4: Send whmi-wris command (protocol v1.2 for Intelligent series)
                 const fileSize = tftData.size;
                 const uploadBaud = detectedBaud;
-                const uploadCmd = `whmi-wris ${fileSize},${uploadBaud},0`;
-                log(`Step 4: Starting upload (${(fileSize / 1024).toFixed(0)} KB)...`, 'display');
+                const uploadCmd = `whmi-wris ${fileSize},${uploadBaud},1`;
+                log(`Step 4: Starting upload (${(fileSize / 1024).toFixed(0)} KB, protocol v1.2)...`, 'display');
                 log(`Sent: ${uploadCmd}`, 'display');
                 await nextionSendCmd(uploadCmd);
 
-                // Wait for 0x05 — send chunk ASAP after (Nextion may timeout if delayed)
+                // Wait for initial 0x05 ACK
                 log('Waiting for Nextion upload ACK (0x05)...', 'display');
                 nextionRxBuffer = new Uint8Array(0);
-                const whmiStart = Date.now();
                 await nextionReadUntilByte(0x05, 15000);
-                log(`Nextion ACK received in ${Date.now() - whmiStart}ms — sending data immediately`, 'display');
-                nextionRxBuffer = new Uint8Array(0);  // Clear any trailing bytes
+                log('Nextion ACK received — starting upload', 'display');
+                nextionRxBuffer = new Uint8Array(0);
                 nextionSetProgress(20);
 
-                // Step 5: Send .tft file in 4096-byte chunks
-                log(`Step 5: Uploading .tft firmware... [bridge v6-diag]`, 'display');
+                // Step 5: Upload with protocol v1.2
+                // Nextion responds with:
+                //   0x05 = send next 4096-byte chunk from current position
+                //   0x08 + 4 bytes = skip to offset (little-endian uint32), then send chunk
+                log('Step 5: Uploading .tft firmware... [protocol v1.2]', 'display');
                 const fileData = tftData.data;
                 const chunkSize = 4096;
-                const totalChunks = Math.ceil(fileData.length / chunkSize);
-                let bytesSent = 0;
+                let filePos = 0;
+                let chunksSent = 0;
+                const uploadStart = Date.now();
 
-                for (let i = 0; i < totalChunks; i++) {
-                    const start = i * chunkSize;
-                    const end = Math.min(start + chunkSize, fileData.length);
-                    const chunk = fileData.slice(start, end);
+                // Send first chunk immediately after 0x05
+                {
+                    const end = Math.min(filePos + chunkSize, fileData.length);
+                    await nextionWriter.write(fileData.slice(filePos, end));
+                    filePos = end;
+                    chunksSent++;
+                    log(`  Chunk 1: bytes 0-${end} sent`, 'display');
+                }
 
-                    // Clear buffer before sending chunk
+                // Process responses and send remaining data
+                while (filePos < fileSize) {
+                    // Wait for Nextion response: 0x05 (1 byte) or 0x08 + offset (5 bytes)
                     nextionRxBuffer = new Uint8Array(0);
+                    const respStart = Date.now();
+                    let responded = false;
 
-                    await nextionWriter.write(chunk);
-                    bytesSent += chunk.length;
+                    while (Date.now() - respStart < 10000) {
+                        if (nextionRxBuffer.length >= 1) {
+                            if (nextionRxBuffer[0] === 0x05) {
+                                // Send next chunk from current position
+                                nextionRxBuffer = new Uint8Array(0);
+                                const end = Math.min(filePos + chunkSize, fileData.length);
+                                await nextionWriter.write(fileData.slice(filePos, end));
+                                filePos = end;
+                                chunksSent++;
+                                responded = true;
+                                break;
+                            } else if (nextionRxBuffer[0] === 0x08 && nextionRxBuffer.length >= 5) {
+                                // Skip to offset (little-endian uint32)
+                                const offset = nextionRxBuffer[1] | (nextionRxBuffer[2] << 8) |
+                                               (nextionRxBuffer[3] << 16) | (nextionRxBuffer[4] << 24);
+                                nextionRxBuffer = new Uint8Array(0);
 
-                    // Wait for 0x05 ACK from Nextion with diagnostics
-                    const chunkStart = Date.now();
-                    let gotAck = false;
-                    while (Date.now() - chunkStart < 30000) {
-                        // Check buffer for 0x05
-                        for (let j = 0; j < nextionRxBuffer.length; j++) {
-                            if (nextionRxBuffer[j] === 0x05) {
-                                nextionRxBuffer = nextionRxBuffer.slice(j + 1);
-                                gotAck = true;
+                                if (offset >= fileSize) {
+                                    log(`  Skip past EOF (offset ${offset}) — upload complete`, 'display');
+                                    filePos = fileSize;
+                                    responded = true;
+                                    break;
+                                }
+
+                                const skippedKB = Math.round((offset - filePos) / 1024);
+                                log(`  SKIP: ${filePos} → ${offset} (${skippedKB} KB skipped, ${Math.round(offset*100/fileSize)}%)`, 'display');
+                                filePos = offset;
+
+                                const end = Math.min(filePos + chunkSize, fileData.length);
+                                await nextionWriter.write(fileData.slice(filePos, end));
+                                filePos = end;
+                                chunksSent++;
+                                responded = true;
                                 break;
                             }
-                        }
-                        if (gotAck) break;
-
-                        // Log diagnostic every 5 seconds
-                        const elapsed = Date.now() - chunkStart;
-                        if (elapsed > 0 && elapsed % 5000 < 25) {
-                            const bufHex = Array.from(nextionRxBuffer.slice(0, 32)).map(b => b.toString(16).padStart(2,'0')).join(' ');
-                            log(`  [DIAG] Chunk ${i+1}: waiting ${Math.round(elapsed/1000)}s, rxBuf=${nextionRxBuffer.length}B [${bufHex}]`, 'display');
                         }
                         await new Promise(r => setTimeout(r, 20));
                     }
 
-                    if (!gotAck) {
-                        const bufHex = Array.from(nextionRxBuffer.slice(0, 64)).map(b => b.toString(16).padStart(2,'0')).join(' ');
-                        // Query ESP32 bridge byte counters for diagnostics
-                        try {
-                            nextionRxBuffer = new Uint8Array(0);
-                            await nextionSendRaw('NEXTION_STATUS\n');
-                            await new Promise(r => setTimeout(r, 500));
-                            const statusText = new TextDecoder().decode(nextionRxBuffer);
-                            log(`  [BRIDGE] ${statusText.trim()}`, 'display');
-                        } catch(e) { /* ignore status query errors */ }
-                        throw new Error(`Chunk ${i+1}/${totalChunks} no ACK after 30s. rxBuf=${nextionRxBuffer.length}B [${bufHex}]`);
+                    if (!responded) {
+                        const bufHex = Array.from(nextionRxBuffer.slice(0, 32)).map(b => b.toString(16).padStart(2,'0')).join(' ');
+                        throw new Error(`No response after chunk ${chunksSent}. rxBuf=${nextionRxBuffer.length}B [${bufHex}]`);
                     }
 
-                    const percent = 20 + Math.round((bytesSent / fileData.length) * 75);
+                    // Update progress
+                    const percent = 20 + Math.round((filePos / fileSize) * 75);
                     nextionSetProgress(percent);
-                    nextionSetInfo(`${bytesSent} / ${fileData.length} bytes (${Math.round(bytesSent / fileData.length * 100)}%)`);
+                    nextionSetInfo(`${filePos} / ${fileSize} bytes (${Math.round(filePos / fileSize * 100)}%)`);
 
-                    if ((i + 1) % 20 === 0 || i === totalChunks - 1 || i < 3) {
-                        log(`  Chunk ${i + 1}/${totalChunks} OK (${Math.round(bytesSent / 1024)} KB)`, 'display');
+                    if (chunksSent % 20 === 0 || filePos >= fileSize) {
+                        const elapsed = ((Date.now() - uploadStart) / 1000).toFixed(1);
+                        log(`  ${Math.round(filePos/1024)}/${Math.round(fileSize/1024)} KB (${Math.round(filePos*100/fileSize)}%) — ${chunksSent} chunks, ${elapsed}s`, 'display');
                     }
                 }
+
+                const totalElapsed = ((Date.now() - uploadStart) / 1000).toFixed(1);
+                log(`Upload complete: ${chunksSent} chunks in ${totalElapsed}s`, 'display');
 
                 nextionSetProgress(97);
                 log('Upload complete! Nextion is installing firmware...', 'display');
