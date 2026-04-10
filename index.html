@@ -1326,9 +1326,14 @@
                 if (nextionPort) {
                     log('Reusing port from DISPLAY flash...', 'display');
                     // Wait for ESP32 to reboot and USB to re-enumerate
-                    log('Waiting for ESP32 to reboot after flash...', 'display');
+                    log('Waiting for ESP32 to reboot...', 'display');
                     await new Promise(r => setTimeout(r, 5000));
-                    // Try to open (may need retry as USB re-enumerates)
+                    // Get fresh port reference (USB re-enumeration invalidates old one)
+                    const ports = await navigator.serial.getPorts();
+                    if (ports.length > 0) {
+                        nextionPort = ports[ports.length - 1]; // Most recently connected
+                    }
+                    // Try to open with retry
                     for (let retry = 0; retry < 5; retry++) {
                         try {
                             await nextionPort.open({ baudRate: 115200 });
