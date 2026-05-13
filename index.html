@@ -863,7 +863,10 @@
         }
 
         async function downloadFile(url) {
-            const response = await fetch(url);
+            // Append a cache-busting query string so browsers/GitHub-Pages CDN
+            // don't serve a stale .bin after a release update.
+            const sep = url.includes('?') ? '&' : '?';
+            const response = await fetch(`${url}${sep}cb=${Date.now()}`);
             if (!response.ok) {
                 throw new Error(`Download failed: ${url}`);
             }
